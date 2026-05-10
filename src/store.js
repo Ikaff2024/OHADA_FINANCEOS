@@ -92,6 +92,13 @@ export async function updateCompany(input) {
   withTransaction(db, () => {
     insertCompany(db, company);
     ensurePeriodForCompany(db, company);
+    insertAuditEvent(db, {
+      action: "company.update",
+      entityType: "company",
+      entityId: company.id,
+      summary: `Parametres entreprise mis a jour: ${company.name}`,
+      details: company
+    });
   });
 
   return { ok: true, company: readCompany(db), accountingPeriods: readPeriods(db) };
@@ -111,6 +118,13 @@ export async function addJournalEntries(entries) {
     for (const entry of normalizedEntries) {
       insertEntry(db, entry);
     }
+    insertAuditEvent(db, {
+      action: normalizedEntries.length === 1 ? "journal.create" : "journal.bulk_create",
+      entityType: "journal_entry",
+      entityId: normalizedEntries.length === 1 ? normalizedEntries[0].id : "batch",
+      summary: `${normalizedEntries.length} ecriture(s) ajoutee(s)`,
+      details: { entryIds: normalizedEntries.map((entry) => entry.id) }
+    });
   });
   return normalizedEntries;
 }
@@ -140,8 +154,38 @@ export async function addAuxiliaryAccount(input) {
     accountCode,
     createdAt: new Date().toISOString()
   };
-  insertAuxiliaryAccount(db, auxiliary);
+  withTransaction(db, () => {
+    insertAuxiliaryAccount(db, auxiliary);
+    insertAuditEvent(db, {
+      action: "auxiliary.create",
+      entityType: "auxiliary_account",
+      entityId: auxiliary.code,
+      summary: `Auxiliaire cree: ${auxiliary.code} - ${auxiliary.label}`,
+      details: auxiliary
+    });
+  });
   return { ok: true, auxiliary };
+}
+
+export async function addAccountingPeriod(input = {}) {
+  const db = await getDatabase();
+  const period = buildAccountingPeriod(db, input);
+  const errors = validatePeriod(db, period);
+  if (errors.length > 0) {
+    return { ok: false, status: 422, errors };
+  }
+
+  withTransaction(db, () => {
+    insertPeriod(db, period);
+    insertAuditEvent(db, {
+      action: "period.create",
+      entityType: "accounting_period",
+      entityId: period.id,
+      summary: `Exercice cree: ${period.name}`,
+      details: period
+    });
+  });
+  return { ok: true, period };
 }
 
 export async function deleteJournalEntry(entryId) {
@@ -158,6 +202,13 @@ export async function deleteJournalEntry(entryId) {
   withTransaction(db, () => {
     db.prepare("DELETE FROM journal_lines WHERE entry_id = ?").run(entryId);
     db.prepare("DELETE FROM journal_entries WHERE id = ?").run(entryId);
+    insertAuditEvent(db, {
+      action: "journal.delete",
+      entityType: "journal_entry",
+      entityId: entryId,
+      summary: `Ecriture supprimee: ${entry.reference} - ${entry.description}`,
+      details: { entry }
+    });
 
     if (entry.batchId) {
       const batch = readBatch(db, entry.batchId);
@@ -183,7 +234,16 @@ export async function deleteJournalEntry(entryId) {
 
 export async function addBankImportBatch(batch) {
   const db = await getDatabase();
-  insertBatch(db, batch);
+  withTransaction(db, () => {
+    insertBatch(db, batch);
+    insertAuditEvent(db, {
+      action: "bank_import.commit",
+      entityType: "bank_import_batch",
+      entityId: batch.id,
+      summary: `Import bancaire valide: ${batch.importedCount} ecriture(s)`,
+      details: batch
+    });
+  });
   return batch;
 }
 
@@ -199,6 +259,13 @@ export async function addSubscriptionBatch(batch, entries) {
     for (const entry of normalizedEntries) {
       insertEntry(db, entry);
     }
+    insertAuditEvent(db, {
+      action: "subscription.generate",
+      entityType: "subscription_batch",
+      entityId: batch.id,
+      summary: `Abonnement genere: ${batch.name} (${normalizedEntries.length} ecriture(s))`,
+      details: { batch, entryIds: normalizedEntries.map((entry) => entry.id) }
+    });
   });
   return {
     ...batch,
@@ -245,7 +312,17 @@ export async function addManualLettering(input) {
     return { ok: false, status: 422, error: "Le debit et le credit selectionnes doivent etre equilibres." };
   }
 
-  const group = createLetteringGroup(db, firstAccountCode, selectedRefs, "manual");
+  let group;
+  withTransaction(db, () => {
+    group = createLetteringGroup(db, firstAccountCode, selectedRefs, "manual");
+    insertAuditEvent(db, {
+      action: "lettering.manual",
+      entityType: "lettering_group",
+      entityId: group.id,
+      summary: `Lettrage manuel ${group.code} sur ${firstAccountCode}`,
+      details: group
+    });
+  });
   return { ok: true, group, rows: buildLetteringState(db, firstAccountCode) };
 }
 
@@ -263,6 +340,15 @@ export async function addAutomaticLettering(input = {}) {
       for (const match of matchLetteringPairs(rowsForAccount)) {
         groups.push(createLetteringGroup(db, match[0].accountCode, match.map((row) => row.lineRef), "automatic"));
       }
+    }
+    if (groups.length > 0) {
+      insertAuditEvent(db, {
+        action: "lettering.auto",
+        entityType: "lettering_group",
+        entityId: "automatic",
+        summary: `Lettrage automatique: ${groups.length} groupe(s)`,
+        details: { groups }
+      });
     }
   });
 
@@ -303,6 +389,13 @@ export async function voidBankImportBatch(batchId) {
       SET status = 'voided', voided_at = ?, updated_at = ?
       WHERE id = ?
     `).run(new Date().toISOString(), new Date().toISOString(), batchId);
+    insertAuditEvent(db, {
+      action: "bank_import.void",
+      entityType: "bank_import_batch",
+      entityId: batchId,
+      summary: `Lot bancaire annule: ${batch.importedCount} ecriture(s) visee(s)`,
+      details: batch
+    });
   });
   const after = Number(db.prepare("SELECT COUNT(*) AS count FROM journal_entries").get().count);
 
@@ -351,11 +444,20 @@ export async function setAccountingPeriodStatus(periodId, status) {
   }
 
   const timestamp = new Date().toISOString();
-  db.prepare(`
-    UPDATE accounting_periods
-    SET status = ?, locked_at = ?, updated_at = ?
-    WHERE id = ?
-  `).run(status, status === "locked" ? timestamp : null, timestamp, periodId);
+  withTransaction(db, () => {
+    db.prepare(`
+      UPDATE accounting_periods
+      SET status = ?, locked_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(status, status === "locked" ? timestamp : null, timestamp, periodId);
+    insertAuditEvent(db, {
+      action: status === "locked" ? "period.lock" : "period.unlock",
+      entityType: "accounting_period",
+      entityId: periodId,
+      summary: `${status === "locked" ? "Exercice verrouille" : "Exercice rouvert"}: ${period.name}`,
+      details: { before: period, after: readPeriod(db, periodId) }
+    });
+  });
 
   return { ok: true, period: readPeriod(db, periodId) };
 }
@@ -470,6 +572,17 @@ function createSchema(db) {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id TEXT PRIMARY KEY,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_journal_entries_created_at ON journal_entries(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_batch_id ON journal_entries(batch_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_bank_fingerprint ON journal_entries(bank_fingerprint);
@@ -477,6 +590,8 @@ function createSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_accounting_periods_dates ON accounting_periods(start_date, end_date);
     CREATE INDEX IF NOT EXISTS idx_subscription_batches_created_at ON subscription_batches(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_lettering_groups_account_code ON lettering_groups(account_code);
+    CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
   `);
   addColumnIfMissing(db, "journal_entries", "reference", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "journal_lines", "auxiliary_code", "TEXT");
@@ -518,6 +633,7 @@ function readSnapshot(db) {
     bankImportBatches: readBatches(db),
     subscriptionBatches: readSubscriptionBatches(db),
     letteringGroups: readLetteringGroups(db),
+    auditEvents: readAuditEvents(db),
     journalEntries: readEntries(db)
   };
 }
@@ -620,6 +736,71 @@ function validateCompany(company) {
   return errors;
 }
 
+function buildAccountingPeriod(db, input) {
+  const latest = db.prepare(`
+    SELECT *
+    FROM accounting_periods
+    ORDER BY end_date DESC
+    LIMIT 1
+  `).get();
+  const nextRange = latest ? nextPeriodRange(mapPeriod(latest)) : nextPeriodRange(readCompany(db));
+  const startDate = String(input.startDate || nextRange.startDate).trim();
+  const endDate = String(input.endDate || nextRange.endDate).trim();
+  const year = startDate.slice(0, 4);
+
+  return {
+    id: String(input.id || `period-${year}`).trim(),
+    name: String(input.name || `Exercice ${year}`).trim(),
+    startDate,
+    endDate,
+    status: "open",
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function validatePeriod(db, period) {
+  const errors = [];
+  if (!period.name || period.name.length < 3) errors.push("Le nom de l'exercice est obligatoire.");
+  if (!isIsoDate(period.startDate)) errors.push("La date de debut d'exercice est invalide.");
+  if (!isIsoDate(period.endDate)) errors.push("La date de fin d'exercice est invalide.");
+  if (isIsoDate(period.startDate) && isIsoDate(period.endDate) && period.endDate < period.startDate) {
+    errors.push("La fin d'exercice doit etre posterieure au debut.");
+  }
+
+  const sameId = readPeriod(db, period.id);
+  if (sameId) errors.push("Un exercice avec cet identifiant existe deja.");
+
+  if (errors.length === 0) {
+    const overlap = db.prepare(`
+      SELECT *
+      FROM accounting_periods
+      WHERE NOT (end_date < ? OR start_date > ?)
+      LIMIT 1
+    `).get(period.startDate, period.endDate);
+    if (overlap) errors.push(`La periode chevauche ${overlap.name}.`);
+  }
+
+  return errors;
+}
+
+function nextPeriodRange(period) {
+  const start = addDays(period.endDate ?? period.fiscalYearEnd, 1);
+  const end = addDays(addYears(start, 1), -1);
+  return { startDate: start, endDate: end };
+}
+
+function addYears(date, years) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCFullYear(value.getUTCFullYear() + years);
+  return value.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 function isIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 }
@@ -718,6 +899,24 @@ function readLetteringGroups(db) {
     FROM lettering_groups
     ORDER BY created_at DESC
   `).all().map(mapLetteringGroup);
+}
+
+function readAuditEvents(db) {
+  return db.prepare(`
+    SELECT *
+    FROM audit_events
+    ORDER BY created_at DESC
+    LIMIT 250
+  `).all().map((row) => ({
+    id: row.id,
+    actor: row.actor,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    summary: row.summary,
+    details: JSON.parse(row.details_json || "{}"),
+    createdAt: row.created_at
+  }));
 }
 
 function readLetteringRows(db) {
@@ -935,6 +1134,23 @@ function insertLetteringGroup(db, group) {
     JSON.stringify(group.lineRefs ?? []),
     group.mode,
     group.createdAt ?? new Date().toISOString()
+  );
+}
+
+function insertAuditEvent(db, event) {
+  db.prepare(`
+    INSERT INTO audit_events
+    (id, actor, action, entity_type, entity_id, summary, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    event.id ?? crypto.randomUUID(),
+    event.actor ?? "system",
+    event.action,
+    event.entityType,
+    event.entityId,
+    event.summary,
+    JSON.stringify(event.details ?? {}),
+    event.createdAt ?? new Date().toISOString()
   );
 }
 

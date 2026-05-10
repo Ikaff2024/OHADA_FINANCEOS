@@ -9,6 +9,7 @@ const state = {
   batches: [],
   subscriptionBatches: [],
   lettering: { rows: [], groups: [] },
+  auditEvents: [],
   reports: {
     trialBalance: [],
     generalLedger: [],
@@ -72,6 +73,10 @@ const printAuxiliaryBalanceButton = document.querySelector("#print-auxiliary-bal
 const auxiliaryBalanceSearchEl = document.querySelector("#auxiliary-balance-search");
 const auxiliaryBalancePartyFilterEl = document.querySelector("#auxiliary-balance-party-filter");
 const reportPeriodEls = document.querySelectorAll("[data-report-period]");
+const reportPeriodSelectEl = document.querySelector("#report-period-select");
+const createNextPeriodButton = document.querySelector("#create-next-period");
+const auditSearchEl = document.querySelector("#audit-search");
+const auditActionFilterEl = document.querySelector("#audit-action-filter");
 const auxiliaryForm = document.querySelector("#auxiliary-form");
 const auxiliaryMessageEl = document.querySelector("#auxiliary-message");
 const autoBalanceEl = document.querySelector("#auto-balance");
@@ -123,6 +128,10 @@ printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliary
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
 reportPeriodEls.forEach((input) => input.addEventListener("change", () => updateReportPeriod(input)));
+reportPeriodSelectEl.addEventListener("change", updateSelectedReportPeriod);
+createNextPeriodButton.addEventListener("click", createNextPeriod);
+auditSearchEl.addEventListener("input", renderAuditEvents);
+auditActionFilterEl.addEventListener("change", renderAuditEvents);
 form.addEventListener("submit", submitEntry);
 auxiliaryForm.addEventListener("submit", submitAuxiliaryAccount);
 document.querySelectorAll("[data-view-target]").forEach((button) => {
@@ -174,6 +183,11 @@ const viewCopy = {
     label: "Etats financiers",
     title: 'Etats <span>financiers</span> de controle.',
     subtitle: "Consultez la balance et les premiers indicateurs de coherence comptable."
+  },
+  audit: {
+    label: "Audit",
+    title: "Journal <span>d'audit</span> comptable.",
+    subtitle: "Suivez les modifications sensibles: saisies, clotures, imports, lettrages et parametres."
   },
   settings: {
     label: "Parametres entreprise",
@@ -270,15 +284,15 @@ function syncSubscriptionLabel(side) {
 }
 
 async function refresh() {
-  const [company, entries, auxiliaryAccounts, reports, batches, subscriptionBatches, lettering, periods] = await Promise.all([
+  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents] = await Promise.all([
     fetchJson("/api/company"),
     fetchJson("/api/journal-entries"),
     fetchJson("/api/auxiliary-accounts"),
-    fetchReportsForPeriod(),
     fetchJson("/api/bank-imports/batches"),
     fetchJson("/api/subscriptions"),
     fetchJson("/api/lettering"),
-    fetchJson("/api/accounting-periods")
+    fetchJson("/api/accounting-periods"),
+    fetchJson("/api/audit-events")
   ]);
 
   state.company = company;
@@ -288,6 +302,10 @@ async function refresh() {
   state.subscriptionBatches = subscriptionBatches;
   state.lettering = lettering;
   state.periods = periods;
+  state.auditEvents = auditEvents;
+  renderReportPeriodOptions();
+  ensureReportPeriodSelected();
+  const reports = await fetchReportsForPeriod();
   state.reports = reports;
 
   renderCompanyHeader();
@@ -308,6 +326,8 @@ async function refresh() {
   renderAuxiliaries();
   renderGeneralLedger();
   renderLettering();
+  renderAuditActionFilter();
+  renderAuditEvents();
 }
 
 async function fetchReportsForPeriod() {
@@ -328,9 +348,24 @@ async function updateReportPeriod(changedInput) {
   for (const input of reportPeriodEls) {
     if (input.dataset.reportPeriod === periodSide) input.value = changedInput.value;
   }
+  reportPeriodSelectEl.value = matchingReportPeriodValue();
   state.reports = await fetchReportsForPeriod();
   renderLedgerAccountFilter();
   renderLedgerAuxiliaryFilter();
+  renderMetrics();
+  renderClosingControls();
+  renderTrialBalance();
+  renderAuxiliaries();
+  renderGeneralLedger();
+}
+
+async function updateSelectedReportPeriod() {
+  const selected = state.periods.find((period) => period.id === reportPeriodSelectEl.value);
+  for (const input of reportPeriodEls) {
+    if (input.dataset.reportPeriod === "from") input.value = selected?.startDate ?? "";
+    if (input.dataset.reportPeriod === "to") input.value = selected?.endDate ?? "";
+  }
+  state.reports = await fetchReportsForPeriod();
   renderMetrics();
   renderClosingControls();
   renderTrialBalance();
@@ -715,6 +750,56 @@ function renderPeriods() {
   }
 }
 
+function renderReportPeriodOptions() {
+  const selectedValue = reportPeriodSelectEl.value || matchingReportPeriodValue();
+  reportPeriodSelectEl.innerHTML = `
+    <option value="all">Toutes dates</option>
+    ${state.periods.map((period) => `
+      <option value="${escapeHtml(period.id)}">${escapeHtml(period.name)}</option>
+    `).join("")}
+  `;
+  reportPeriodSelectEl.value = state.periods.some((period) => period.id === selectedValue) ? selectedValue : matchingReportPeriodValue();
+}
+
+function ensureReportPeriodSelected() {
+  const hasDateFilter = [...reportPeriodEls].some((input) => input.value);
+  if (hasDateFilter || state.periods.length === 0) {
+    reportPeriodSelectEl.value = matchingReportPeriodValue();
+    return;
+  }
+
+  const activePeriod = state.periods.find((period) => period.status === "open") ?? state.periods[0];
+  reportPeriodSelectEl.value = activePeriod.id;
+  for (const input of reportPeriodEls) {
+    if (input.dataset.reportPeriod === "from") input.value = activePeriod.startDate;
+    if (input.dataset.reportPeriod === "to") input.value = activePeriod.endDate;
+  }
+}
+
+function matchingReportPeriodValue() {
+  const { from, to } = selectedReportPeriod();
+  const period = state.periods.find((candidate) => candidate.startDate === from && candidate.endDate === to);
+  return period?.id ?? "all";
+}
+
+async function createNextPeriod() {
+  if (!confirm("Creer l'exercice suivant ?")) return;
+
+  const response = await fetch("/api/accounting-periods", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    setMessage(body.errors?.join(" ") ?? body.error ?? "Creation impossible.", true);
+    return;
+  }
+
+  setMessage(`${body.period.name} cree.`);
+  await refresh();
+}
+
 function renderClosingControls() {
   const closing = state.reports.closingControls;
   if (!closing) return;
@@ -790,6 +875,74 @@ function renderBatches() {
   for (const button of document.querySelectorAll("[data-void-batch]")) {
     button.addEventListener("click", () => voidBatch(button.dataset.voidBatch));
   }
+}
+
+function renderAuditActionFilter() {
+  const selected = auditActionFilterEl.value || "all";
+  const actions = [...new Set(state.auditEvents.map((event) => event.action))].sort();
+  auditActionFilterEl.innerHTML = `
+    <option value="all">Toutes actions</option>
+    ${actions.map((action) => `<option value="${escapeHtml(action)}">${escapeHtml(auditActionLabel(action))}</option>`).join("")}
+  `;
+  auditActionFilterEl.value = actions.includes(selected) ? selected : "all";
+}
+
+function renderAuditEvents() {
+  const rows = filteredAuditEvents();
+  document.querySelector("#audit-count").textContent = `${rows.length} evenement(s)`;
+  document.querySelector("#audit-events").innerHTML = rows
+    .slice(0, 120)
+    .map((event) => `
+      <article class="audit-event">
+        <div class="audit-event-main">
+          <strong>${escapeHtml(event.summary)}</strong>
+          <span>${escapeHtml(auditActionLabel(event.action))} - ${escapeHtml(event.entityType)} ${escapeHtml(event.entityId)}</span>
+        </div>
+        <div class="audit-event-meta">
+          <span>${escapeHtml(event.actor)}</span>
+          <span>${formatDateTime(event.createdAt)}</span>
+        </div>
+      </article>
+    `)
+    .join("");
+
+  if (rows.length === 0) {
+    document.querySelector("#audit-events").innerHTML = `<div class="message">Aucun evenement ne correspond aux filtres.</div>`;
+  }
+}
+
+function filteredAuditEvents() {
+  const query = auditSearchEl.value.trim().toLowerCase();
+  const action = auditActionFilterEl.value;
+  return state.auditEvents.filter((event) => {
+    const matchesAction = action === "all" || event.action === action;
+    const haystack = [
+      event.action,
+      event.actor,
+      event.entityType,
+      event.entityId,
+      event.summary
+    ].join(" ").toLowerCase();
+    return matchesAction && (!query || haystack.includes(query));
+  });
+}
+
+function auditActionLabel(action) {
+  return {
+    "auxiliary.create": "Creation auxiliaire",
+    "bank_import.commit": "Validation import bancaire",
+    "bank_import.void": "Annulation import bancaire",
+    "company.update": "Modification entreprise",
+    "journal.bulk_create": "Creation ecritures",
+    "journal.create": "Creation ecriture",
+    "journal.delete": "Suppression ecriture",
+    "lettering.auto": "Lettrage automatique",
+    "lettering.manual": "Lettrage manuel",
+    "period.create": "Creation exercice",
+    "period.lock": "Verrouillage exercice",
+    "period.unlock": "Reouverture exercice",
+    "subscription.generate": "Generation abonnement"
+  }[action] ?? action;
 }
 
 function renderSubscriptionBatches() {

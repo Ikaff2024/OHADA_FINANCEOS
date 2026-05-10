@@ -39,6 +39,7 @@
         <button class="nav-item" type="button" data-view-target="chart"><span class="nav-icon">#</span> Plan comptable</button>
         <button class="nav-item" type="button" data-view-target="auxiliaries"><span class="nav-icon">+</span> Auxiliaires</button>
         <button class="nav-item" type="button" data-view-target="reports"><span class="nav-icon">=</span> Etats financiers</button>
+        <button class="nav-item" type="button" data-view-target="audit"><span class="nav-icon">!</span> Audit</button>
 
         <div class="nav-label">Production</div>
         <button class="nav-item" type="button" data-view-target="imports"><span class="nav-icon">v</span> Imports bancaires</button>
@@ -67,6 +68,9 @@
             </p>
           </div>
           <div class="head-actions" id="view-actions">
+            <select id="report-period-select" aria-label="Exercice des etats">
+              <option value="all">Toutes dates</option>
+            </select>
             <button class="btn" type="button" data-view-target="imports">Importer CSV</button>
             <button class="btn btn-primary" type="button" data-view-target="journal">Voir journal</button>
           </div>
@@ -165,7 +169,10 @@
                   <p class="eyebrow">Cloture</p>
                   <h2>Controle de periode</h2>
                 </div>
-                <span class="status-pill" id="period-status">Ouvert</span>
+                <div class="section-actions">
+                  <button class="btn" type="button" id="create-next-period">Creer exercice suivant</button>
+                  <span class="status-pill" id="period-status">Ouvert</span>
+                </div>
               </div>
               <div class="periods" id="periods"></div>
             </article>
@@ -597,6 +604,25 @@
           </article>
         </section>
 
+        <section class="view" data-view="audit">
+          <article class="panel audit-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Traçabilite</p>
+                <h2>Journal d'audit</h2>
+              </div>
+              <span class="status-pill" id="audit-count">0 evenement</span>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="audit-search" type="search" placeholder="Rechercher action, resume, entite..." />
+              <select id="audit-action-filter">
+                <option value="all">Toutes actions</option>
+              </select>
+            </div>
+            <div class="audit-events" id="audit-events"></div>
+          </article>
+        </section>
+
         <section class="view" data-view="settings">
           <article class="panel entry-panel">
             <div class="section-title">
@@ -673,6 +699,6 @@
     <datalist id="account-options"></datalist>
     <datalist id="auxiliary-options"></datalist>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=20260510-audit"></script>
   </body>
 </html>

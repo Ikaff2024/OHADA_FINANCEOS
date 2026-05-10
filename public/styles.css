@@ -905,6 +905,46 @@ textarea {
   font-size: 12.5px;
 }
 
+.audit-events {
+  display: grid;
+  gap: 10px;
+  max-height: 650px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.audit-event {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(253, 249, 242, 0.82);
+}
+
+.audit-event-main strong,
+.audit-event-main span,
+.audit-event-meta span {
+  display: block;
+}
+
+.audit-event-main strong {
+  font-size: 13.5px;
+}
+
+.audit-event-main span,
+.audit-event-meta span {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.audit-event-meta {
+  flex-shrink: 0;
+  text-align: right;
+}
+
 .reports-closing {
   margin-top: 16px;
 }

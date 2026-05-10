@@ -26,6 +26,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Validation des comptes et des montants
 - Balance generale consultable en 6 ou 8 colonnes, exportable en CSV ou XLS
 - Etats imprimables et exportables selon une periode datee
+- Selection d'exercice pour piloter les etats et indicateurs
 - Bilan simplifie
 - Compte de resultat simplifie
 - API JSON locale
@@ -51,9 +52,11 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Choix d'interface: theme classique OHADA ou theme sombre Linear Stripe
 - Totaux visibles sur les balances et le grand livre
 - Exercice comptable persiste dans SQLite
+- Creation de l'exercice suivant
 - Verrouillage / reouverture de periode
 - Blocage des saisies, suppressions et annulations d'import sur periode verrouillee
 - Tableau de controles de cloture avant edition des etats
+- Journal d'audit des actions sensibles
 
 ## API
 
@@ -65,6 +68,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - `GET /api/auxiliary-accounts`
 - `POST /api/auxiliary-accounts`
 - `GET /api/accounting-periods`
+- `POST /api/accounting-periods`
 - `POST /api/accounting-periods/:id/lock`
 - `POST /api/accounting-periods/:id/unlock`
 - `GET /api/journal-entries`
@@ -81,6 +85,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - `GET /api/lettering`
 - `POST /api/lettering/manual`
 - `POST /api/lettering/auto`
+- `GET /api/audit-events`
 - `GET /api/reports/trial-balance`
 - `GET /api/reports/general-ledger`
 - `GET /api/reports/auxiliary-balance`

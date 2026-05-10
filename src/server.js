@@ -21,6 +21,7 @@ import {
 } from "./bankImport.js";
 import { accountClasses, accounts } from "./ohadaChart.js";
 import {
+  addAccountingPeriod,
   addAuxiliaryAccount,
   addBankImportBatch,
   addClassificationCorrections,
@@ -109,6 +110,13 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/accounting-periods") {
+    const payload = await readJson(request);
+    const result = await addAccountingPeriod(payload);
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    return;
+  }
+
   if (request.method === "POST" && url.pathname.startsWith("/api/accounting-periods/")) {
     const parts = url.pathname.split("/");
     const periodId = decodeURIComponent(parts.at(-2));
@@ -176,6 +184,11 @@ async function handleApi(request, response, url) {
 
   if (request.method === "GET" && url.pathname === "/api/lettering") {
     sendJson(response, 200, await readLetteringState(url.searchParams.get("accountCode") ?? ""));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/audit-events") {
+    sendJson(response, 200, db.auditEvents ?? []);
     return;
   }
 

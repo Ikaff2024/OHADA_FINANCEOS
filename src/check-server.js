@@ -145,6 +145,22 @@ try {
   });
   assert.equal(unlocked.status, 200);
 
+  const nextPeriod = await fetch(`http://localhost:${port}/api/accounting-periods`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  assert.equal(nextPeriod.status, 201);
+  const nextPeriodBody = await nextPeriod.json();
+  assert.equal(nextPeriodBody.period.startDate, "2027-01-01");
+
+  const allPeriods = await fetchJson(`http://localhost:${port}/api/accounting-periods`);
+  assert.equal(allPeriods.length, 2);
+
+  const auditAfterPeriod = await fetchJson(`http://localhost:${port}/api/audit-events`);
+  assert.equal(auditAfterPeriod.some((event) => event.action === "period.create"), true);
+  assert.equal(auditAfterPeriod.some((event) => event.action === "period.lock"), true);
+
   const manual = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
     headers: { "content-type": "application/json" },
