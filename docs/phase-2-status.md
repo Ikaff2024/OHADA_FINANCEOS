@@ -11,8 +11,10 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Backend local structure autour d'une API JSON Node.js native.
 - Persistance SQLite locale avec schemas explicites et seed de demonstration.
 - Authentification email/mot de passe avec hash `scrypt` et sessions bearer.
+- Ecran de connexion frontend, session conservee dans le navigateur et bouton de deconnexion.
 - Organisation de demonstration creee automatiquement depuis l'entreprise.
 - Utilisateurs avec roles `owner`, `admin`, `accountant`, `viewer`.
+- Protection serveur des principales routes d'ecriture selon les roles.
 - Exercices comptables avec creation, verrouillage et reouverture.
 - Plan comptable SYSCOHADA enrichi.
 - Journaux et ecritures comptables equilibrees.
@@ -28,14 +30,14 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
 - Base de donnees: SQLite solide pour MVP local, PostgreSQL reste a brancher avant de viser une exploitation multi-clients.
-- Auth: API disponible, mais l'ecran de connexion et l'application stricte des roles sur toutes les routes metier restent a faire.
+- Auth: le flux de connexion est disponible; il reste l'administration complete des utilisateurs dans l'interface.
 - Jobs: file persistante disponible, mais pas encore de worker asynchrone.
 - Exports: exports locaux disponibles, mais pas encore de generation serveur historisee.
 
 ## Reste a faire pour finir la phase 2
 
-- Ajouter l'ecran de connexion et conserver la session cote frontend.
-- Proteger les routes de mutation existantes avec les roles adaptes.
+- Ajouter l'administration des utilisateurs et roles dans l'interface.
+- Etendre la protection par organisation a toutes les donnees metier.
 - Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
 - Introduire PostgreSQL avec migrations reproductibles.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.

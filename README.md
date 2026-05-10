@@ -58,7 +58,9 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Tableau de controles de cloture avant edition des etats
 - Journal d'audit des actions sensibles
 - Authentification email/mot de passe avec sessions bearer
+- Ecran de connexion et session conservee cote navigateur
 - Utilisateurs, roles et organisation de demonstration
+- Protection des routes d'ecriture sensibles par role
 - File de jobs simple pour preparer imports et generations longues
 - Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
 
@@ -120,4 +122,4 @@ Le suivi detaille est dans `docs/phase-2-status.md`.
 
 ## Prochaine priorite
 
-Brancher l'interface sur l'authentification et appliquer les roles aux actions sensibles existantes.
+Ajouter l'administration des utilisateurs dans l'interface et brancher un worker de jobs pour les imports et exports longs.

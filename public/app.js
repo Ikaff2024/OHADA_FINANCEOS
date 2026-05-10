@@ -17,7 +17,23 @@ const state = {
     balanceSheet: null,
     incomeStatement: null,
     closingControls: null
+  },
+  auth: {
+    token: localStorage.getItem("ohada-auth-token") || "",
+    user: null,
+    organization: null
+  },
+  booted: false
+};
+
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const url = typeof input === "string" ? input : input?.url ?? "";
+  const headers = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
+  if (isApiRequest(url) && state.auth.token && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${state.auth.token}`);
   }
+  return nativeFetch(input, { ...init, headers });
 };
 
 const formatter = new Intl.NumberFormat("fr-FR", {
@@ -84,6 +100,13 @@ const balanceEntryButton = document.querySelector("#balance-entry");
 const entryBalanceStatusEl = document.querySelector("#entry-balance-status");
 const accountOptionsEl = document.querySelector("#account-options");
 const auxiliaryOptionsEl = document.querySelector("#auxiliary-options");
+const authGateEl = document.querySelector("#auth-gate");
+const loginForm = document.querySelector("#login-form");
+const loginMessageEl = document.querySelector("#login-message");
+const logoutButton = document.querySelector("#logout-button");
+const userAvatarEl = document.querySelector("#user-avatar");
+const userNameEl = document.querySelector("#user-name");
+const userRoleEl = document.querySelector("#user-role");
 let isBalancingEntry = false;
 
 document.querySelector("#add-line").addEventListener("click", () => {
@@ -134,6 +157,8 @@ auditSearchEl.addEventListener("input", renderAuditEvents);
 auditActionFilterEl.addEventListener("change", renderAuditEvents);
 form.addEventListener("submit", submitEntry);
 auxiliaryForm.addEventListener("submit", submitAuxiliaryAccount);
+loginForm.addEventListener("submit", submitLogin);
+logoutButton.addEventListener("click", logout);
 document.querySelectorAll("[data-view-target]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
@@ -200,6 +225,16 @@ await boot();
 
 async function boot() {
   setUiTheme(localStorage.getItem("ohada-ui-theme") || "classic", false);
+  const hasSession = await restoreSession();
+  if (!hasSession) {
+    showLogin();
+    return;
+  }
+  await loadApplication();
+}
+
+async function loadApplication() {
+  hideLogin();
   const [company, accounts, accountClasses] = await Promise.all([
     fetchJson("/api/company"),
     fetchJson("/api/accounts"),
@@ -226,6 +261,125 @@ async function boot() {
 
   await refresh();
   setView(window.location.hash.replace("#", "") || "dashboard");
+  state.booted = true;
+}
+
+async function restoreSession() {
+  if (!state.auth.token) return false;
+  try {
+    const auth = await fetchJson("/api/auth/me");
+    state.auth.user = auth.user;
+    state.auth.organization = auth.organization;
+    renderUser();
+    return true;
+  } catch {
+    clearSession();
+    return false;
+  }
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  setLoginMessage("Connexion en cours...");
+  const response = await nativeFetch("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: loginForm.elements.email.value,
+      password: loginForm.elements.password.value
+    })
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    setLoginMessage(body.error || "Connexion impossible.", true);
+    return;
+  }
+
+  state.auth.token = body.token;
+  state.auth.user = body.user;
+  state.auth.organization = body.organization;
+  localStorage.setItem("ohada-auth-token", body.token);
+  renderUser();
+  setLoginMessage("");
+
+  if (state.booted) {
+    hideLogin();
+    await refresh();
+    return;
+  }
+  await loadApplication();
+}
+
+async function logout() {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    clearSession();
+    showLogin();
+  }
+}
+
+function clearSession() {
+  state.auth.token = "";
+  state.auth.user = null;
+  state.auth.organization = null;
+  localStorage.removeItem("ohada-auth-token");
+  renderUser();
+}
+
+function showLogin() {
+  document.body.dataset.auth = "locked";
+  authGateEl.removeAttribute("hidden");
+  loginForm.elements.email.focus();
+}
+
+function hideLogin() {
+  document.body.dataset.auth = "unlocked";
+  authGateEl.setAttribute("hidden", "");
+}
+
+function renderUser() {
+  const user = state.auth.user;
+  if (!user) {
+    userAvatarEl.textContent = "--";
+    userNameEl.textContent = "Non connecte";
+    userRoleEl.textContent = "Session requise";
+    return;
+  }
+  userAvatarEl.textContent = initials(user.name || user.email);
+  userNameEl.textContent = user.name || user.email;
+  userRoleEl.textContent = roleLabel(user.role);
+}
+
+function setLoginMessage(text, isError = false) {
+  loginMessageEl.textContent = text;
+  loginMessageEl.classList.toggle("error", isError);
+}
+
+function isApiRequest(url) {
+  try {
+    return new URL(url, window.location.origin).pathname.startsWith("/api/");
+  } catch {
+    return false;
+  }
+}
+
+function initials(value) {
+  return String(value || "")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "U";
+}
+
+function roleLabel(role) {
+  return {
+    owner: "Proprietaire",
+    admin: "Administrateur",
+    accountant: "Comptable",
+    viewer: "Lecture seule"
+  }[role] || "Utilisateur";
 }
 
 function setUiTheme(theme, persist = true) {
@@ -1809,6 +1963,11 @@ function nextManualReference(prefix = "MAN") {
 
 async function fetchJson(url) {
   const response = await fetch(url);
+  if (response.status === 401) {
+    clearSession();
+    showLogin();
+    throw new Error("Session expiree");
+  }
   if (!response.ok) throw new Error(`Erreur API ${url}`);
   return response.json();
 }

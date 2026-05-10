@@ -55,6 +55,57 @@ button {
   min-height: 100vh;
 }
 
+body[data-auth="locked"] .app-shell {
+  display: none;
+}
+
+.auth-gate {
+  display: none;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    linear-gradient(120deg, rgba(31, 24, 20, 0.88), rgba(92, 70, 48, 0.7)),
+    var(--bg);
+}
+
+body[data-auth="locked"] .auth-gate {
+  display: grid;
+}
+
+.auth-panel {
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 1px solid rgba(253, 249, 242, 0.16);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 24px 80px rgba(31, 24, 20, 0.28);
+}
+
+.auth-brand {
+  padding: 0 0 24px;
+}
+
+.auth-panel h1 {
+  max-width: 380px;
+  margin-top: 6px;
+  font-size: 36px;
+}
+
+.auth-copy {
+  margin: 10px 0 22px;
+  color: var(--ink-soft);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form .btn {
+  width: 100%;
+}
+
 .sidebar {
   position: sticky;
   top: 0;
@@ -249,6 +300,11 @@ th {
   border-top: 1px solid var(--line);
 }
 
+.user-card > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
 .avatar {
   display: grid;
   width: 36px;
@@ -272,6 +328,24 @@ th {
   color: var(--ink-faint);
   font-size: 11px;
   font-weight: 700;
+}
+
+.icon-btn {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-faint);
+  font-weight: 900;
+}
+
+.icon-btn:hover {
+  background: var(--paper-warm);
+  color: var(--ink);
 }
 
 .main {

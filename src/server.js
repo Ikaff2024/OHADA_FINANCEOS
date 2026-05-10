@@ -157,6 +157,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "PUT" && url.pathname === "/api/company") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const result = await updateCompany(payload);
     sendJson(response, result.ok ? 200 : result.status ?? 422, result);
@@ -179,6 +181,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/auxiliary-accounts") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const result = await addAuxiliaryAccount(payload);
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
@@ -191,6 +195,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/accounting-periods") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const result = await addAccountingPeriod(payload);
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
@@ -202,6 +208,8 @@ async function handleApi(request, response, url) {
     const periodId = decodeURIComponent(parts.at(-2));
     const action = parts.at(-1);
     if (["lock", "unlock"].includes(action)) {
+      const auth = await requireRole(request, response, ["owner", "admin"]);
+      if (!auth) return;
       const result = await setAccountingPeriodStatus(periodId, action === "lock" ? "locked" : "open");
       sendJson(response, result.ok ? 200 : 404, result);
       return;
@@ -223,6 +231,8 @@ async function handleApi(request, response, url) {
     }
 
     if (request.method === "DELETE") {
+      const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+      if (!auth) return;
       const result = await deleteJournalEntry(entryId);
       sendJson(response, result.ok ? 200 : result.status ?? 404, result);
       return;
@@ -240,6 +250,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/subscriptions") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const batchId = crypto.randomUUID();
     const built = buildSubscriptionEntries(payload, batchId);
@@ -273,6 +285,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/lettering/manual") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const result = await addManualLettering(payload);
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
@@ -280,6 +294,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/lettering/auto") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const result = await addAutomaticLettering(payload);
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
@@ -296,6 +312,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/bank-imports/preview") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const preview = previewBankCsv(
       payload.csv,
@@ -307,6 +325,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/bank-imports/commit") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const preview = previewBankCsv(
       payload.csv,
@@ -358,6 +378,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname.startsWith("/api/bank-imports/batches/") && url.pathname.endsWith("/void")) {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const batchId = url.pathname.split("/").at(-2);
     const result = await voidBankImportBatch(batchId);
     sendJson(response, result.ok ? 200 : result.status ?? 404, result);
@@ -365,6 +387,8 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/journal-entries") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
     const payload = await readJson(request);
     const validation = validateJournalEntry(payload);
 

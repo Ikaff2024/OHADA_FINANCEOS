@@ -33,6 +33,19 @@ try {
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
 
+  const anonymousWrite = await fetch(`http://localhost:${port}/api/company`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Tentative anonyme",
+      country: "CI",
+      currency: "XOF",
+      fiscalYearStart: "2026-01-01",
+      fiscalYearEnd: "2026-12-31"
+    })
+  });
+  assert.equal(anonymousWrite.status, 401);
+
   const login = await fetch(`http://localhost:${port}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -45,6 +58,14 @@ try {
   const authHeaders = {
     "content-type": "application/json",
     authorization: `Bearer ${loginBody.token}`
+  };
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = (url, options = {}) => {
+    const headers = new Headers(options.headers);
+    if (String(url).includes("/api/") && !headers.has("authorization")) {
+      headers.set("authorization", `Bearer ${loginBody.token}`);
+    }
+    return nativeFetch(url, { ...options, headers });
   };
 
   const me = await fetch(`http://localhost:${port}/api/auth/me`, { headers: authHeaders });

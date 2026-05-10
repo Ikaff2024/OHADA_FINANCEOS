@@ -7,6 +7,33 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
+      <div class="auth-panel">
+        <div class="brand auth-brand">
+          <div class="brand-mark">O</div>
+          <div>
+            <div class="brand-name">OHADA</div>
+            <div class="brand-tag">FinanceOS</div>
+          </div>
+        </div>
+        <p class="eyebrow">Espace securise</p>
+        <h1 id="auth-title">Connexion au dossier comptable</h1>
+        <p class="auth-copy">Identifiez-vous pour acceder aux ecritures, imports, roles et operations sensibles.</p>
+        <form id="login-form" class="auth-form">
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="username" value="admin@demo.ohada" required />
+          </label>
+          <label>
+            Mot de passe
+            <input name="password" type="password" autocomplete="current-password" value="admin12345" required />
+          </label>
+          <button class="btn btn-primary" type="submit">Se connecter</button>
+          <div class="message" id="login-message"></div>
+        </form>
+      </div>
+    </section>
+
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
@@ -49,11 +76,12 @@
         <button class="nav-item" type="button" data-view-target="settings"><span class="nav-icon">~</span> Parametres entreprise</button>
 
         <div class="user-card">
-          <div class="avatar">AI</div>
+          <div class="avatar" id="user-avatar">--</div>
           <div>
-            <div class="user-name">Assistant comptable</div>
-            <div class="user-role">Mode MVP local</div>
+            <div class="user-name" id="user-name">Non connecte</div>
+            <div class="user-role" id="user-role">Session requise</div>
           </div>
+          <button class="icon-btn" type="button" id="logout-button" title="Se deconnecter">x</button>
         </div>
       </aside>
 
