@@ -62,6 +62,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Utilisateurs, roles et organisation de demonstration
 - Administration des utilisateurs et roles dans l'interface
 - Protection des routes d'ecriture sensibles par role
+- API metier fermee par defaut: les lectures et mutations exigent une session
 - File de jobs simple pour preparer imports et generations longues
 - Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
 - Worker local pour generer des exports financiers serveur et les historiser

@@ -33,6 +33,12 @@ try {
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
 
+  const anonymousCompany = await fetch(`http://localhost:${port}/api/company`);
+  assert.equal(anonymousCompany.status, 401);
+
+  const anonymousAccounts = await fetch(`http://localhost:${port}/api/accounts`);
+  assert.equal(anonymousAccounts.status, 401);
+
   const anonymousWrite = await fetch(`http://localhost:${port}/api/company`, {
     method: "PUT",
     headers: { "content-type": "application/json" },

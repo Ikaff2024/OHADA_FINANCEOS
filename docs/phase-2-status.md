@@ -16,6 +16,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Utilisateurs avec roles `owner`, `admin`, `accountant`, `viewer`.
 - Administration frontend des utilisateurs: creation, changement de role et activation/desactivation.
 - Protection serveur des principales routes d'ecriture selon les roles.
+- API metier fermee par defaut apres les routes publiques de sante et d'authentification.
 - Exercices comptables avec creation, verrouillage et reouverture.
 - Plan comptable SYSCOHADA enrichi.
 - Journaux et ecritures comptables equilibrees.

@@ -108,9 +108,10 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  const authenticated = await requireAuth(request, response);
+  if (!authenticated) return;
+
   if (request.method === "GET" && url.pathname === "/api/organizations") {
-    const auth = await requireAuth(request, response);
-    if (!auth) return;
     sendJson(response, 200, await readOrganizations());
     return;
   }
@@ -140,8 +141,6 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/jobs") {
-    const auth = await requireAuth(request, response);
-    if (!auth) return;
     sendJson(response, 200, await readJobs());
     return;
   }
@@ -163,15 +162,11 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/files") {
-    const auth = await requireAuth(request, response);
-    if (!auth) return;
     sendJson(response, 200, await readStoredFiles());
     return;
   }
 
   if (request.method === "GET" && url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/content")) {
-    const auth = await requireAuth(request, response);
-    if (!auth) return;
     const fileId = decodeURIComponent(url.pathname.split("/").at(-2));
     const stored = await readStoredFileContent(fileId);
     if (!stored) {
