@@ -11,6 +11,6 @@
     "check:e2e": "node src/check-server.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   }
 }

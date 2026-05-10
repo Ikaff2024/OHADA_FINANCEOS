@@ -14,6 +14,8 @@ Puis ouvrir:
 http://localhost:3050
 ```
 
+Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
+
 ## Contenu du MVP
 
 - Creation et lecture d'une entreprise de demonstration
