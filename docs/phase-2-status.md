@@ -23,6 +23,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Creation de comptes comptables propres au dossier et utilisables dans les ecritures/etats.
 - Creation de journaux comptables propres au dossier et selection du journal en saisie.
 - Journaux et ecritures comptables equilibrees.
+- Modification d'ecritures tant que l'exercice n'est pas verrouille.
 - Imports bancaires CSV avec preview, detection de doublons, commit et annulation.
 - Etats financiers: balance, grand livre, balance auxiliaire, bilan, compte de resultat, controles de cloture.
 - Exports CSV/XLS cote navigateur.

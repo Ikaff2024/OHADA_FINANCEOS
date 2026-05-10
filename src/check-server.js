@@ -202,6 +202,7 @@ try {
     })
   });
   assert.equal(customAccountEntry.status, 201);
+  const customAccountEntryBody = await customAccountEntry.json();
 
   const ledgerWithCustomAccount = await fetchJson(`http://localhost:${port}/api/reports/general-ledger`);
   assert.equal(ledgerWithCustomAccount.some((row) => row.reference === "CA-001" && row.accountCode === "7088" && row.accountLabel === "Produits digitaux test"), true);
@@ -365,6 +366,22 @@ try {
   });
   assert.equal(lockedManual.status, 423);
 
+  const lockedUpdate = await fetch(`http://localhost:${port}/api/journal-entries/${customAccountEntryBody.id}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      reference: "CA-001-MOD",
+      description: "Modification refusee periode verrouillee",
+      source: "CA",
+      lines: [
+        { accountCode: "5211", debit: 1000, credit: 0 },
+        { accountCode: "7088", debit: 0, credit: 1000 }
+      ]
+    })
+  });
+  assert.equal(lockedUpdate.status, 423);
+
   const unlocked = await fetch(`http://localhost:${port}/api/accounting-periods/${periods[0].id}/unlock`, {
     method: "POST"
   });
@@ -401,6 +418,24 @@ try {
   });
   assert.equal(manual.status, 201);
   const manualBody = await manual.json();
+
+  const updatedManual = await fetch(`http://localhost:${port}/api/journal-entries/${manualBody.id}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      date: "2026-03-01",
+      reference: "MAN-001-MOD",
+      description: "Saisie test modifiee avant suppression",
+      source: "OD",
+      lines: [
+        { accountCode: "5211", debit: 1500, credit: 0 },
+        { accountCode: "7061", debit: 0, credit: 1500 }
+      ]
+    })
+  });
+  assert.equal(updatedManual.status, 200);
+  const updatedManualBody = await updatedManual.json();
+  assert.equal(updatedManualBody.entry.description, "Saisie test modifiee avant suppression");
 
   const auxiliaryManual = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
@@ -529,8 +564,9 @@ try {
   assert.equal(lettering.rows.filter((row) => row.reference === "REG-002" && row.letteringCode).length, 1);
 
   const detail = await fetchJson(`http://localhost:${port}/api/journal-entries/${manualBody.id}`);
-  assert.equal(detail.description, "Saisie test suppression");
-  assert.equal(detail.reference, "MAN-001");
+  assert.equal(detail.description, "Saisie test modifiee avant suppression");
+  assert.equal(detail.reference, "MAN-001-MOD");
+  assert.equal(detail.source, "OD");
 
   const deleted = await fetch(`http://localhost:${port}/api/journal-entries/${manualBody.id}`, {
     method: "DELETE"

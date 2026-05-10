@@ -52,6 +52,7 @@ import {
   readUsers,
   saveTextFile,
   setAccountingPeriodStatus,
+  updateJournalEntry,
   updateUser,
   updateCompany,
   voidBankImportBatch
@@ -301,9 +302,31 @@ async function handleApi(request, response, url) {
       return;
     }
 
+    if (request.method === "PUT") {
+      const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+      if (!auth) return;
+      if (!entry) {
+        sendJson(response, 404, { error: "Ecriture introuvable." });
+        return;
+      }
+      const payload = await readJson(request);
+      const validation = validateJournalEntry(payload, db.accounts);
+      if (!validation.ok) {
+        sendJson(response, 422, { errors: validation.errors });
+        return;
+      }
+      const result = await updateJournalEntry(entryId, payload);
+      sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+      return;
+    }
+
     if (request.method === "DELETE") {
       const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
       if (!auth) return;
+      if (!entry) {
+        sendJson(response, 404, { error: "Ecriture introuvable." });
+        return;
+      }
       const result = await deleteJournalEntry(entryId);
       sendJson(response, result.ok ? 200 : result.status ?? 404, result);
       return;

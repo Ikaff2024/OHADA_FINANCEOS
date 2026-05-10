@@ -25,6 +25,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Creation de comptes comptables propres au dossier
 - Creation de journaux comptables propres au dossier
 - Saisie d'ecritures comptables equilibrees
+- Modification d'ecritures tant que l'exercice reste ouvert
 - References obligatoires sur les ecritures
 - Validation des comptes et des montants
 - Balance generale consultable en 6 ou 8 colonnes, exportable en CSV ou XLS
@@ -116,6 +117,7 @@ Mot de passe: admin12345
 - `GET /api/journal-entries`
 - `POST /api/journal-entries`
 - `GET /api/journal-entries/:id`
+- `PUT /api/journal-entries/:id`
 - `DELETE /api/journal-entries/:id`
 - `GET /api/bank-imports/sample`
 - `POST /api/bank-imports/preview`

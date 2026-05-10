@@ -123,6 +123,8 @@ const balanceEntryButton = document.querySelector("#balance-entry");
 const entryBalanceStatusEl = document.querySelector("#entry-balance-status");
 const accountOptionsEl = document.querySelector("#account-options");
 const auxiliaryOptionsEl = document.querySelector("#auxiliary-options");
+const cancelEntryEditButton = document.querySelector("#cancel-entry-edit");
+const saveEntryButton = document.querySelector("#save-entry");
 const authGateEl = document.querySelector("#auth-gate");
 const loginForm = document.querySelector("#login-form");
 const loginMessageEl = document.querySelector("#login-message");
@@ -131,12 +133,14 @@ const userAvatarEl = document.querySelector("#user-avatar");
 const userNameEl = document.querySelector("#user-name");
 const userRoleEl = document.querySelector("#user-role");
 let isBalancingEntry = false;
+let editingEntryId = "";
 
 document.querySelector("#add-line").addEventListener("click", () => {
   addLine();
   renderEntryBalanceStatus();
 });
 document.querySelector("#demo-sale").addEventListener("click", fillDemoSale);
+cancelEntryEditButton.addEventListener("click", cancelEntryEdit);
 document.querySelector("#load-sample").addEventListener("click", loadSampleCsv);
 document.querySelector("#preview-import").addEventListener("click", previewImport);
 uiThemeEl.addEventListener("change", () => setUiTheme(uiThemeEl.value));
@@ -666,7 +670,7 @@ function addLine(values = {}) {
 async function submitEntry(event) {
   event.preventDefault();
   if (autoBalanceEl.checked) balanceEntry();
-  setMessage("Enregistrement en cours...");
+  setMessage(editingEntryId ? "Modification en cours..." : "Enregistrement en cours...");
 
   const payload = {
     date: form.elements.date.value,
@@ -682,8 +686,8 @@ async function submitEntry(event) {
     }))
   };
 
-  const response = await fetch("/api/journal-entries", {
-    method: "POST",
+  const response = await fetch(editingEntryId ? `/api/journal-entries/${encodeURIComponent(editingEntryId)}` : "/api/journal-entries", {
+    method: editingEntryId ? "PUT" : "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload)
   });
@@ -694,8 +698,12 @@ async function submitEntry(event) {
     return;
   }
 
-  setMessage("Ecriture enregistree.");
-  form.elements.reference.value = nextManualReference();
+  setMessage(editingEntryId ? "Ecriture modifiee." : "Ecriture enregistree.");
+  if (editingEntryId) {
+    exitEntryEditMode();
+  } else {
+    form.elements.reference.value = nextManualReference();
+  }
   await refresh();
 }
 
@@ -2031,6 +2039,9 @@ function renderAccountOptions() {
 function renderJournalOptions() {
   const options = [
     `<option value="manual">Saisie manuelle</option>`,
+    `<option value="subscription">Abonnement</option>`,
+    `<option value="bank-csv">Import bancaire</option>`,
+    `<option value="seed">Demo</option>`,
     ...state.journals
       .filter((journal) => journal.status === "active")
       .map((journal) => `<option value="${escapeHtml(journal.code)}">${escapeHtml(journal.code)} - ${escapeHtml(journal.label)}</option>`)
@@ -2107,7 +2118,9 @@ function renderEntries() {
   document.querySelector("#entries").innerHTML = filteredEntries
     .slice(0, 8)
     .map(
-      (entry) => `
+      (entry) => {
+        const locked = isEntryLocked(entry);
+        return `
         <article class="entry" data-entry-id="${escapeHtml(entry.id)}">
           <header>
             <strong>${escapeHtml(entry.description)}</strong>
@@ -2129,10 +2142,12 @@ function renderEntries() {
           </ul>
           <div class="entry-actions">
             <button class="btn" type="button" data-view-entry="${escapeHtml(entry.id)}">Detail</button>
-            <button class="btn danger" type="button" data-delete-entry="${escapeHtml(entry.id)}">Supprimer</button>
+            <button class="btn" type="button" data-edit-entry="${escapeHtml(entry.id)}" ${locked ? "disabled title=\"Exercice verrouille\"" : ""}>Modifier</button>
+            <button class="btn danger" type="button" data-delete-entry="${escapeHtml(entry.id)}" ${locked ? "disabled title=\"Exercice verrouille\"" : ""}>Supprimer</button>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 
@@ -2142,6 +2157,10 @@ function renderEntries() {
 
   for (const button of document.querySelectorAll("[data-view-entry]")) {
     button.addEventListener("click", () => showEntryDetail(button.dataset.viewEntry));
+  }
+
+  for (const button of document.querySelectorAll("[data-edit-entry]")) {
+    button.addEventListener("click", () => startEntryEdit(button.dataset.editEntry));
   }
 
   for (const button of document.querySelectorAll("[data-delete-entry]")) {
@@ -2185,6 +2204,11 @@ function filterEntries() {
   });
 }
 
+function isEntryLocked(entry) {
+  const period = state.periods.find((candidate) => entry.date >= candidate.startDate && entry.date <= candidate.endDate);
+  return period?.status === "locked";
+}
+
 function showEntryDetail(entryId) {
   const entry = state.entries.find((candidate) => candidate.id === entryId);
   if (!entry) return;
@@ -2204,6 +2228,11 @@ function showEntryDetail(entryId) {
         <span>Debit ${money(debit)}</span>
         <span>Credit ${money(credit)}</span>
       </div>
+      ${isEntryLocked(entry) ? `<div class="message">Exercice verrouille: modification et suppression indisponibles.</div>` : `
+        <div class="entry-actions">
+          <button class="btn" type="button" data-edit-entry-detail="${escapeHtml(entry.id)}">Modifier</button>
+        </div>
+      `}
       <table>
         <thead>
           <tr>
@@ -2228,6 +2257,56 @@ function showEntryDetail(entryId) {
       </table>
     </div>
   `;
+
+  const editButton = journalDetailEl.querySelector("[data-edit-entry-detail]");
+  if (editButton) editButton.addEventListener("click", () => startEntryEdit(editButton.dataset.editEntryDetail));
+}
+
+function startEntryEdit(entryId) {
+  const entry = state.entries.find((candidate) => candidate.id === entryId);
+  if (!entry) return;
+  if (isEntryLocked(entry)) {
+    setMessage("Cette ecriture appartient a un exercice verrouille.", true);
+    return;
+  }
+
+  editingEntryId = entry.id;
+  form.elements.date.value = entry.date;
+  form.elements.reference.value = entry.reference ?? "";
+  form.elements.description.value = entry.description;
+  if (![...entryJournalEl.options].some((option) => option.value === entry.source)) {
+    entryJournalEl.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(entry.source)}">${sourceLabel(entry.source)}</option>`);
+  }
+  form.elements.source.value = entry.source ?? "manual";
+  linesEl.innerHTML = "";
+  for (const line of entry.lines) {
+    addLine(line);
+  }
+  saveEntryButton.textContent = "Modifier l'ecriture";
+  cancelEntryEditButton.hidden = false;
+  setMessage(`Modification de l'ecriture ${entry.reference}.`);
+  setView("dashboard");
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelEntryEdit() {
+  exitEntryEditMode();
+  setMessage("Modification annulee.");
+}
+
+function exitEntryEditMode() {
+  editingEntryId = "";
+  form.reset();
+  linesEl.innerHTML = "";
+  form.elements.date.valueAsDate = new Date();
+  form.elements.reference.value = nextManualReference();
+  form.elements.source.value = "manual";
+  addLine({ accountCode: "4111", debit: 250000, credit: 0 });
+  addLine({ accountCode: "7061", debit: 0, credit: 250000 });
+  form.elements.description.value = "Vente de services";
+  saveEntryButton.textContent = "Enregistrer";
+  cancelEntryEditButton.hidden = true;
+  renderEntryBalanceStatus();
 }
 
 async function deleteEntry(entryId) {

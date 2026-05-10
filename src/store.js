@@ -507,6 +507,44 @@ export async function addJournalEntry(entry) {
   return (await addJournalEntries([entry]))[0];
 }
 
+export async function updateJournalEntry(entryId, input) {
+  const db = await getDatabase();
+  const current = readEntry(db, entryId);
+  if (!current) return { ok: false, status: 404, error: "Ecriture introuvable." };
+
+  const organizationId = current.organizationId ?? defaultOrganizationId;
+  const lockedCurrentPeriod = findLockedPeriodForDate(db, current.date, organizationId);
+  if (lockedCurrentPeriod) {
+    return { ok: false, status: 423, error: `Periode verrouillee: ${lockedCurrentPeriod.name}.` };
+  }
+
+  const updated = normalizeJournalEntry({
+    ...current,
+    ...input,
+    id: current.id,
+    organizationId,
+    batchId: current.batchId,
+    bankFingerprint: current.bankFingerprint,
+    createdAt: current.createdAt
+  });
+  ensureKnownJournal(db, updated.source, organizationId);
+  assertEntriesInOpenPeriods(db, [updated]);
+
+  withTransaction(db, () => {
+    insertEntry(db, updated);
+    insertAuditEvent(db, {
+      organizationId,
+      action: "journal.update",
+      entityType: "journal_entry",
+      entityId: entryId,
+      summary: `Ecriture modifiee: ${updated.reference} - ${updated.description}`,
+      details: { before: current, after: updated }
+    });
+  });
+
+  return { ok: true, entry: updated };
+}
+
 export async function addJournalEntries(entries) {
   if (entries.length === 0) return [];
 
@@ -602,7 +640,7 @@ export async function deleteJournalEntry(entryId) {
   if (!entry) {
     return { ok: false, error: "Ecriture introuvable." };
   }
-  const lockedPeriod = findLockedPeriodForDate(db, entry.date);
+  const lockedPeriod = findLockedPeriodForDate(db, entry.date, entry.organizationId);
   if (lockedPeriod) {
     return { ok: false, status: 423, error: `Periode verrouillee: ${lockedPeriod.name}.` };
   }
@@ -788,7 +826,7 @@ export async function voidBankImportBatch(batchId, organizationId = defaultOrgan
 
   const entryIds = new Set(batch.entryIds);
   const entries = [...entryIds].map((entryId) => readEntry(db, entryId)).filter(Boolean);
-  const lockedPeriod = entries.map((entry) => findLockedPeriodForDate(db, entry.date)).find(Boolean);
+  const lockedPeriod = entries.map((entry) => findLockedPeriodForDate(db, entry.date, organizationId)).find(Boolean);
   if (lockedPeriod) {
     return { ok: false, status: 423, error: `Periode verrouillee: ${lockedPeriod.name}.` };
   }
@@ -1513,7 +1551,7 @@ function ensureKnownJournal(db, code, organizationId) {
 
 function assertEntriesInOpenPeriods(db, entries) {
   for (const entry of entries) {
-    const lockedPeriod = findLockedPeriodForDate(db, entry.date);
+    const lockedPeriod = findLockedPeriodForDate(db, entry.date, entry.organizationId);
     if (lockedPeriod) {
       const error = new Error(`Periode verrouillee: ${lockedPeriod.name}.`);
       error.status = 423;
@@ -1522,12 +1560,12 @@ function assertEntriesInOpenPeriods(db, entries) {
   }
 }
 
-function findLockedPeriodForDate(db, date) {
+function findLockedPeriodForDate(db, date, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM accounting_periods
-    WHERE status = 'locked' AND ? BETWEEN start_date AND end_date
+    WHERE organization_id = ? AND status = 'locked' AND ? BETWEEN start_date AND end_date
     LIMIT 1
-  `).all(date).map(mapPeriod)[0] ?? null;
+  `).all(organizationId ?? defaultOrganizationId, date).map(mapPeriod)[0] ?? null;
 }
 
 function readCorrections(db, organizationId = defaultOrganizationId) {
