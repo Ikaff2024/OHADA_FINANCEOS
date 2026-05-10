@@ -8,7 +8,8 @@
     "dev": "node --no-warnings src/server.js",
     "start": "node --no-warnings src/server.js",
     "check": "node src/check.js",
-    "check:e2e": "node src/check-server.js"
+    "check:e2e": "node src/check-server.js",
+    "db:pg:dump": "node scripts/export-postgres-seed.js"
   },
   "engines": {
     "node": ">=22.13.0"

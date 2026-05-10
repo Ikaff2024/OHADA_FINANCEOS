@@ -22,7 +22,14 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 1. Garder SQLite pour les demos locales et les tests rapides.
 2. Brancher l'adapter PostgreSQL sur `DATABASE_URL`.
 3. Rejouer le schema cible `db/postgres/schema.sql`.
-4. Migrer les donnees SQLite vers PostgreSQL avec un script dedie.
+4. Generer les donnees SQLite au format PostgreSQL:
+
+```bash
+npm.cmd run db:pg:dump
+```
+
+Le fichier `data/postgres-seed.sql` produit peut ensuite etre applique avec `psql` apres le schema.
+
 5. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 6. Remplacer ensuite le stockage local par un service S3-compatible.
 

@@ -28,6 +28,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Worker local qui traite les jobs d'export financier et produit un fichier JSON telechargeable.
 - Configuration centralisee par variables d'environnement avec `.env.example`.
 - Schema PostgreSQL cible disponible dans `db/postgres/schema.sql`.
+- Export SQL SQLite vers PostgreSQL disponible avec `npm.cmd run db:pg:dump`.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.
 
 ## Partiellement fait
@@ -45,7 +46,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Etendre la protection par organisation a toutes les donnees metier.
 - Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
 - Introduire PostgreSQL avec migrations reproductibles.
-- Ajouter un script de migration SQLite vers PostgreSQL.
+- Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.
 - Formaliser les variables d'environnement et un guide de deploiement Render/Fly/Railway/VPS.

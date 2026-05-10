@@ -6,5 +6,6 @@ npm-debug.log*
 *.log
 data/*.sqlite
 data/*.sqlite-*
+data/postgres-seed*.sql
 storage/uploads/*
 !storage/uploads/.gitkeep

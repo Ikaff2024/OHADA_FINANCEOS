@@ -69,6 +69,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Worker local pour generer des exports financiers serveur et les historiser
 - Configuration centralisee par variables d'environnement
 - Schema PostgreSQL cible dans `db/postgres/schema.sql`
+- Export SQL des donnees SQLite vers PostgreSQL avec `npm.cmd run db:pg:dump`
 
 ## Acces de demonstration
 

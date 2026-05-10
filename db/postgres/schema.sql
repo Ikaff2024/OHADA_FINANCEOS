@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS accounting_periods (
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('open', 'locked')),
-  created_at TIMESTAMPTZ NOT NULL,
-  locked_at TIMESTAMPTZ
+  locked_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS auxiliary_accounts (
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS journal_entries (
 );
 
 CREATE TABLE IF NOT EXISTS journal_lines (
-  id TEXT PRIMARY KEY,
+  id INTEGER PRIMARY KEY,
   entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
   line_index INTEGER NOT NULL,
   account_code TEXT NOT NULL,
@@ -77,10 +77,15 @@ CREATE TABLE IF NOT EXISTS journal_lines (
 );
 
 CREATE TABLE IF NOT EXISTS classification_corrections (
-  id TEXT PRIMARY KEY,
-  keyword TEXT NOT NULL,
+  match_text TEXT NOT NULL,
+  description TEXT NOT NULL,
+  direction TEXT NOT NULL,
   account_code TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL
+  counterparty_account_code TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  confidence NUMERIC(6, 4) NOT NULL,
+  learned_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (direction, match_text, account_code)
 );
 
 CREATE TABLE IF NOT EXISTS bank_import_batches (
@@ -92,7 +97,9 @@ CREATE TABLE IF NOT EXISTS bank_import_batches (
   imported_count INTEGER NOT NULL,
   duplicate_count INTEGER NOT NULL,
   learned_count INTEGER NOT NULL,
-  entry_ids_json JSONB NOT NULL
+  entry_ids_json JSONB NOT NULL,
+  voided_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS subscription_batches (
@@ -103,6 +110,7 @@ CREATE TABLE IF NOT EXISTS subscription_batches (
   end_date DATE NOT NULL,
   frequency TEXT NOT NULL,
   entry_count INTEGER NOT NULL,
+  entry_ids_json JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL
 );
 
@@ -117,6 +125,7 @@ CREATE TABLE IF NOT EXISTS lettering_groups (
 
 CREATE TABLE IF NOT EXISTS audit_events (
   id TEXT PRIMARY KEY,
+  actor TEXT NOT NULL,
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
