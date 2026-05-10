@@ -82,6 +82,61 @@ try {
   assert.equal(organizations.status, 200);
   assert.equal((await organizations.json()).length >= 1, true);
 
+  const createOrganization = await fetch(`http://localhost:${port}/api/organizations`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: "Client Nouvelle SARL",
+      country: "CI",
+      currency: "XOF",
+      fiscalYearStart: "2026-01-01",
+      fiscalYearEnd: "2026-12-31",
+      ownerName: "Proprietaire Client",
+      ownerEmail: "owner.client@ohada.local",
+      ownerPassword: "owner12345"
+    })
+  });
+  assert.equal(createOrganization.status, 201);
+  const createOrganizationBody = await createOrganization.json();
+  assert.equal(createOrganizationBody.organization.id, "client-nouvelle-sarl");
+  assert.equal(createOrganizationBody.owner.role, "owner");
+
+  const organizationsAfterCreate = await fetchJson(`http://localhost:${port}/api/organizations`);
+  assert.equal(organizationsAfterCreate.some((organization) => organization.id === "client-nouvelle-sarl"), true);
+
+  const ownerLogin = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "owner.client@ohada.local", password: "owner12345" })
+  });
+  assert.equal(ownerLogin.status, 200);
+  const ownerLoginBody = await ownerLogin.json();
+  assert.equal(ownerLoginBody.organization.id, "client-nouvelle-sarl");
+  const ownerHeaders = {
+    "content-type": "application/json",
+    authorization: `Bearer ${ownerLoginBody.token}`
+  };
+
+  const ownerCompany = await fetch(`http://localhost:${port}/api/company`, { headers: ownerHeaders });
+  assert.equal(ownerCompany.status, 200);
+  assert.equal((await ownerCompany.json()).name, "Client Nouvelle SARL");
+
+  const ownerUsers = await fetch(`http://localhost:${port}/api/users`, { headers: ownerHeaders });
+  assert.equal(ownerUsers.status, 200);
+  const ownerUsersBody = await ownerUsers.json();
+  assert.equal(ownerUsersBody.length, 1);
+  assert.equal(ownerUsersBody[0].email, "owner.client@ohada.local");
+
+  const ownerEntries = await fetch(`http://localhost:${port}/api/journal-entries`, { headers: ownerHeaders });
+  assert.equal(ownerEntries.status, 200);
+  assert.equal((await ownerEntries.json()).length, 0);
+
+  const ownerPeriods = await fetch(`http://localhost:${port}/api/accounting-periods`, { headers: ownerHeaders });
+  assert.equal(ownerPeriods.status, 200);
+  const ownerPeriodsBody = await ownerPeriods.json();
+  assert.equal(ownerPeriodsBody.length, 1);
+  assert.equal(ownerPeriodsBody[0].id, "period-client-nouvelle-sarl-2026");
+
   const createUser = await fetch(`http://localhost:${port}/api/users`, {
     method: "POST",
     headers: authHeaders,

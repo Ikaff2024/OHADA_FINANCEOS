@@ -62,6 +62,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Ecran de connexion et session conservee cote navigateur
 - Utilisateurs, roles et organisation de demonstration
 - Administration des utilisateurs et roles dans l'interface
+- Creation de nouveaux dossiers/organisations avec societe, exercice et proprietaire initial
 - Protection des routes d'ecriture sensibles par role
 - API metier fermee par defaut: les lectures et mutations exigent une session
 - File de jobs simple pour preparer imports et generations longues
@@ -87,6 +88,7 @@ Mot de passe: admin12345
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 - `GET /api/organizations`
+- `POST /api/organizations`
 - `GET /api/users`
 - `POST /api/users`
 - `PATCH /api/users/:id`

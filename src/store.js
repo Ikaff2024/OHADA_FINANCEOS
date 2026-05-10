@@ -130,6 +130,79 @@ export async function readOrganizations() {
   return readAllOrganizations(db);
 }
 
+export async function addOrganization(input) {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  const id = organizationIdFromName(input.name);
+  const organization = {
+    id,
+    name: String(input.name || "").trim(),
+    country: String(input.country || "").trim().toUpperCase(),
+    currency: String(input.currency || "").trim().toUpperCase(),
+    createdAt: now
+  };
+  const company = {
+    id,
+    organizationId: id,
+    name: organization.name,
+    country: organization.country,
+    currency: organization.currency,
+    fiscalYearStart: String(input.fiscalYearStart || "").trim(),
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+  };
+  const owner = {
+    id: crypto.randomUUID(),
+    organizationId: id,
+    email: normalizeEmail(input.ownerEmail),
+    name: String(input.ownerName || "").trim(),
+    role: "owner",
+    passwordHash: hashPassword(input.ownerPassword || ""),
+    status: "active",
+    createdAt: now
+  };
+
+  const errors = [
+    ...validateOrganization(organization),
+    ...validateCompany(company),
+    ...validateUser(owner, input.ownerPassword)
+  ];
+  if (readOrganization(db, id)) errors.push("Une organisation avec ce nom existe deja.");
+  if (readUserByEmail(db, owner.email)) errors.push("Cet email utilisateur existe deja.");
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  const period = {
+    id: periodIdForCompany(company),
+    organizationId: id,
+    name: `Exercice ${company.fiscalYearStart.slice(0, 4)}`,
+    startDate: company.fiscalYearStart,
+    endDate: company.fiscalYearEnd,
+    status: "open",
+    updatedAt: now
+  };
+
+  withTransaction(db, () => {
+    insertOrganization(db, organization);
+    insertCompany(db, company);
+    insertPeriod(db, period);
+    insertUser(db, owner);
+    insertAuditEvent(db, {
+      organizationId: id,
+      action: "organization.create",
+      entityType: "organization",
+      entityId: id,
+      summary: `Organisation creee: ${organization.name}`,
+      details: { organization, company, ownerEmail: owner.email }
+    });
+  });
+
+  return {
+    ok: true,
+    organization,
+    company,
+    owner: publicUser(owner)
+  };
+}
+
 export async function readUsers(organizationId = defaultOrganizationId) {
   const db = await getDatabase();
   return readAllUsers(db, organizationId).map(publicUser);
@@ -1123,19 +1196,21 @@ function ensureCompanyPeriod(db) {
 }
 
 function ensurePeriodForCompany(db, company) {
-  const periodId = `period-${company.fiscalYearStart.slice(0, 4)}`;
-  const existing = readPeriod(db, periodId);
+  const periodId = periodIdForCompany(company);
+  const organizationId = company.organizationId ?? company.id ?? defaultOrganizationId;
+  const existing = readPeriod(db, periodId, organizationId);
   if (existing) {
     db.prepare(`
       UPDATE accounting_periods
       SET name = ?, start_date = ?, end_date = ?, updated_at = ?
-      WHERE id = ?
+      WHERE id = ? AND organization_id = ?
     `).run(
       `Exercice ${company.fiscalYearStart.slice(0, 4)}`,
       company.fiscalYearStart,
       company.fiscalYearEnd,
       new Date().toISOString(),
-      periodId
+      periodId,
+      organizationId
     );
     return;
   }
@@ -1178,7 +1253,7 @@ function buildAccountingPeriod(db, input) {
   const year = startDate.slice(0, 4);
 
   return {
-    id: String(input.id || `period-${year}`).trim(),
+    id: String(input.id || periodIdForCompany({ organizationId, fiscalYearStart: startDate })).trim(),
     name: String(input.name || `Exercice ${year}`).trim(),
     startDate,
     endDate,
@@ -1222,6 +1297,31 @@ function validateUser(user, password) {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function validateOrganization(organization) {
+  const errors = [];
+  if (organization.name.length < 2) errors.push("Le nom de l'organisation est obligatoire.");
+  if (!/^[A-Z]{2,3}$/.test(organization.country)) errors.push("Le pays de l'organisation doit etre renseigne avec un code court, ex: CI.");
+  if (!/^[A-Z]{3}$/.test(organization.currency)) errors.push("La devise de l'organisation doit etre un code a 3 lettres, ex: XOF.");
+  return errors;
+}
+
+function organizationIdFromName(name) {
+  const base = String(name || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return base || `org-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function periodIdForCompany(company) {
+  const year = company.fiscalYearStart.slice(0, 4);
+  return company.organizationId === defaultOrganizationId ? `period-${year}` : `period-${company.organizationId}-${year}`;
 }
 
 function nextPeriodRange(period) {

@@ -1,5 +1,6 @@
 const state = {
   company: null,
+  organizations: [],
   accounts: [],
   accountClasses: [],
   auxiliaryAccounts: [],
@@ -59,6 +60,10 @@ const importStatusEl = document.querySelector("#import-status");
 const commitImportButton = document.querySelector("#commit-import");
 const companyForm = document.querySelector("#company-form");
 const companyMessageEl = document.querySelector("#company-message");
+const organizationForm = document.querySelector("#organization-form");
+const organizationMessageEl = document.querySelector("#organization-message");
+const organizationsTableEl = document.querySelector("#organizations-table");
+const organizationsCountEl = document.querySelector("#organizations-count");
 const subscriptionForm = document.querySelector("#subscription-form");
 const subscriptionMessageEl = document.querySelector("#subscription-message");
 const journalSearchEl = document.querySelector("#journal-search");
@@ -137,6 +142,7 @@ autoBalanceEl.addEventListener("change", () => {
 });
 commitImportButton.addEventListener("click", commitImport);
 companyForm.addEventListener("submit", submitCompany);
+organizationForm.addEventListener("submit", submitOrganization);
 subscriptionForm.addEventListener("submit", submitSubscription);
 journalSearchEl.addEventListener("input", renderEntries);
 journalSourceEl.addEventListener("change", renderEntries);
@@ -454,7 +460,7 @@ function syncSubscriptionLabel(side) {
 }
 
 async function refresh() {
-  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents, jobs, storedFiles] = await Promise.all([
+  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents, jobs, storedFiles, organizations] = await Promise.all([
     fetchJson("/api/company"),
     fetchJson("/api/journal-entries"),
     fetchJson("/api/auxiliary-accounts"),
@@ -464,10 +470,12 @@ async function refresh() {
     fetchJson("/api/accounting-periods"),
     fetchJson("/api/audit-events"),
     fetchJson("/api/jobs"),
-    fetchJson("/api/files")
+    fetchJson("/api/files"),
+    fetchJson("/api/organizations")
   ]);
 
   state.company = company;
+  state.organizations = organizations;
   state.entries = entries;
   state.auxiliaryAccounts = auxiliaryAccounts;
   state.batches = batches;
@@ -505,6 +513,7 @@ async function refresh() {
   renderAuditEvents();
   renderUsers();
   renderJobs();
+  renderOrganizations();
 }
 
 async function fetchUsersForRole() {
@@ -728,6 +737,44 @@ async function submitUser(event) {
   setUserMessage("Utilisateur cree.");
   state.users = await fetchUsersForRole();
   renderUsers();
+}
+
+async function submitOrganization(event) {
+  event.preventDefault();
+  if (!canManageUsers()) {
+    setOrganizationMessage("Droits administrateur requis.", true);
+    return;
+  }
+
+  setOrganizationMessage("Creation du dossier en cours...");
+  const payload = {
+    name: organizationForm.elements.name.value,
+    country: organizationForm.elements.country.value,
+    currency: organizationForm.elements.currency.value,
+    fiscalYearStart: organizationForm.elements.fiscalYearStart.value,
+    fiscalYearEnd: organizationForm.elements.fiscalYearEnd.value,
+    ownerName: organizationForm.elements.ownerName.value,
+    ownerEmail: organizationForm.elements.ownerEmail.value,
+    ownerPassword: organizationForm.elements.ownerPassword.value
+  };
+
+  const response = await fetch("/api/organizations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setOrganizationMessage(body.errors?.join(" ") ?? body.error ?? "Creation refusee.", true);
+    return;
+  }
+
+  organizationForm.reset();
+  organizationForm.elements.country.value = state.company?.country || "CI";
+  organizationForm.elements.currency.value = state.company?.currency || "XOF";
+  setOrganizationMessage(`Dossier ${body.organization.name} cree avec son proprietaire.`);
+  await refresh();
 }
 
 async function updateUserAccess(userId) {
@@ -1669,6 +1716,45 @@ function renderUsers() {
   }
 }
 
+function renderOrganizations() {
+  const canManage = canManageUsers();
+  organizationForm.classList.toggle("is-disabled", !canManage);
+  [...organizationForm.elements].forEach((element) => {
+    element.disabled = !canManage;
+  });
+
+  if (!canManage) {
+    organizationsCountEl.textContent = "Acces reserve";
+    organizationsTableEl.innerHTML = `
+      <tr>
+        <td colspan="4">La creation de dossiers est reservee aux proprietaires et administrateurs.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  organizationsCountEl.textContent = `${state.organizations.length} dossier${state.organizations.length > 1 ? "s" : ""}`;
+  organizationsTableEl.innerHTML = state.organizations.map((organization) => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(organization.name)}</strong>
+        <div class="muted-text">${escapeHtml(organization.id)}</div>
+      </td>
+      <td>${escapeHtml(organization.country)}</td>
+      <td>${escapeHtml(organization.currency)}</td>
+      <td>${organization.createdAt ? formatDate(organization.createdAt.slice(0, 10)) : "-"}</td>
+    </tr>
+  `).join("");
+
+  if (state.organizations.length === 0) {
+    organizationsTableEl.innerHTML = `
+      <tr>
+        <td colspan="4">Aucun dossier trouve.</td>
+      </tr>
+    `;
+  }
+}
+
 function renderJobs() {
   const recentJobs = state.jobs.filter((job) => job.type === "financial-statements-export").slice(0, 8);
   jobsTableEl.innerHTML = recentJobs.map((job) => `
@@ -2210,6 +2296,11 @@ function setAuxiliaryMessage(text, isError = false) {
 function setUserMessage(text, isError = false) {
   userMessageEl.textContent = text;
   userMessageEl.classList.toggle("error", isError);
+}
+
+function setOrganizationMessage(text, isError = false) {
+  organizationMessageEl.textContent = text;
+  organizationMessageEl.classList.toggle("error", isError);
 }
 
 function setJobsMessage(text, isError = false) {

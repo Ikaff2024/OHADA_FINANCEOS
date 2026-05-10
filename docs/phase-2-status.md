@@ -13,6 +13,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Authentification email/mot de passe avec hash `scrypt` et sessions bearer.
 - Ecran de connexion frontend, session conservee dans le navigateur et bouton de deconnexion.
 - Organisation de demonstration creee automatiquement depuis l'entreprise.
+- Creation d'organisations/dossiers depuis l'API et l'interface avec societe, exercice et proprietaire initial.
 - Utilisateurs avec roles `owner`, `admin`, `accountant`, `viewer`.
 - Administration frontend des utilisateurs: creation, changement de role et activation/desactivation.
 - Protection serveur des principales routes d'ecriture selon les roles.
@@ -45,8 +46,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 ## Reste a faire pour finir la phase 2
 
 - Ajouter les invitations email et la reinitialisation de mot de passe.
-- Ajouter la creation d'organisations depuis l'interface quand le parcours multi-entreprise devra etre expose.
-- Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
+- Ajouter un switcher d'organisation et un parcours d'invitation pour les utilisateurs rattaches a plusieurs dossiers.
 - Introduire PostgreSQL avec migrations reproductibles.
 - Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.

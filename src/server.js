@@ -21,6 +21,7 @@ import {
 import { accountClasses, accounts } from "./ohadaChart.js";
 import {
   addAccountingPeriod,
+  addOrganization,
   addAuxiliaryAccount,
   addUser,
   addBankImportBatch,
@@ -112,6 +113,14 @@ async function handleApi(request, response, url) {
 
   if (request.method === "GET" && url.pathname === "/api/organizations") {
     sendJson(response, 200, await readOrganizations());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/organizations") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
+    const result = await addOrganization(await readJson(request));
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
 

@@ -722,6 +722,76 @@
           <article class="panel users-panel">
             <div class="section-title">
               <div>
+                <p class="eyebrow">Multi-entreprises</p>
+                <h2>Organisations et dossiers</h2>
+              </div>
+              <span class="status-pill" id="organizations-count">0 dossier</span>
+            </div>
+
+            <form id="organization-form" class="user-form">
+              <div class="form-row">
+                <label>
+                  Nom du dossier
+                  <input name="name" type="text" placeholder="Ex: Client Nouvelle SARL" required />
+                </label>
+                <label>
+                  Proprietaire initial
+                  <input name="ownerName" type="text" placeholder="Ex: Awa Direction" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Email proprietaire
+                  <input name="ownerEmail" type="email" placeholder="direction@client.ci" required />
+                </label>
+                <label>
+                  Mot de passe temporaire
+                  <input name="ownerPassword" type="password" minlength="8" placeholder="8 caracteres minimum" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Pays
+                  <input name="country" type="text" maxlength="3" placeholder="Ex: CI" value="CI" required />
+                </label>
+                <label>
+                  Devise
+                  <input name="currency" type="text" maxlength="3" placeholder="Ex: XOF" value="XOF" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Debut exercice
+                  <input name="fiscalYearStart" type="date" required />
+                </label>
+                <label>
+                  Fin exercice
+                  <input name="fiscalYearEnd" type="date" required />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Creer dossier</button>
+              </div>
+            </form>
+            <div class="message" id="organization-message"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dossier</th>
+                    <th>Pays</th>
+                    <th>Devise</th>
+                    <th>Creation</th>
+                  </tr>
+                </thead>
+                <tbody id="organizations-table"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel users-panel">
+            <div class="section-title">
+              <div>
                 <p class="eyebrow">Administration</p>
                 <h2>Utilisateurs et roles</h2>
               </div>
@@ -807,6 +877,6 @@
     <datalist id="account-options"></datalist>
     <datalist id="auxiliary-options"></datalist>
 
-    <script type="module" src="/app.js?v=20260510-audit"></script>
+    <script type="module" src="/app.js?v=20260510-organizations"></script>
   </body>
 </html>
