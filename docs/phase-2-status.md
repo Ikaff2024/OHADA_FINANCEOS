@@ -20,6 +20,8 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - API metier fermee par defaut apres les routes publiques de sante et d'authentification.
 - Exercices comptables avec creation, verrouillage et reouverture.
 - Plan comptable SYSCOHADA enrichi.
+- Creation de comptes comptables propres au dossier et utilisables dans les ecritures/etats.
+- Creation de journaux comptables propres au dossier et selection du journal en saisie.
 - Journaux et ecritures comptables equilibrees.
 - Imports bancaires CSV avec preview, detection de doublons, commit et annulation.
 - Etats financiers: balance, grand livre, balance auxiliaire, bilan, compte de resultat, controles de cloture.

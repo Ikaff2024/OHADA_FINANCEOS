@@ -4,6 +4,7 @@ const state = {
   accounts: [],
   accountClasses: [],
   auxiliaryAccounts: [],
+  journals: [],
   users: [],
   entries: [],
   periods: [],
@@ -73,8 +74,11 @@ const viewLabelEl = document.querySelector("#view-label");
 const viewTitleEl = document.querySelector("#view-title");
 const viewSubtitleEl = document.querySelector("#view-subtitle");
 const uiThemeEl = document.querySelector("#ui-theme");
+const entryJournalEl = document.querySelector("#entry-journal");
 const accountSearchEl = document.querySelector("#account-search");
 const accountClassFilterEl = document.querySelector("#account-class-filter");
+const accountForm = document.querySelector("#account-form");
+const accountMessageEl = document.querySelector("#account-message");
 const ledgerSearchEl = document.querySelector("#ledger-search");
 const ledgerAccountFilterEl = document.querySelector("#ledger-account-filter");
 const ledgerAuxiliaryFilterEl = document.querySelector("#ledger-auxiliary-filter");
@@ -106,6 +110,10 @@ const auditSearchEl = document.querySelector("#audit-search");
 const auditActionFilterEl = document.querySelector("#audit-action-filter");
 const auxiliaryForm = document.querySelector("#auxiliary-form");
 const auxiliaryMessageEl = document.querySelector("#auxiliary-message");
+const journalForm = document.querySelector("#journal-form");
+const journalMessageEl = document.querySelector("#journal-message");
+const journalsTableEl = document.querySelector("#journals-table");
+const journalsCountEl = document.querySelector("#journals-count");
 const userForm = document.querySelector("#user-form");
 const userMessageEl = document.querySelector("#user-message");
 const usersTableEl = document.querySelector("#users-table");
@@ -143,6 +151,8 @@ autoBalanceEl.addEventListener("change", () => {
 commitImportButton.addEventListener("click", commitImport);
 companyForm.addEventListener("submit", submitCompany);
 organizationForm.addEventListener("submit", submitOrganization);
+accountForm.addEventListener("submit", submitAccount);
+journalForm.addEventListener("submit", submitJournal);
 subscriptionForm.addEventListener("submit", submitSubscription);
 journalSearchEl.addEventListener("input", renderEntries);
 journalSourceEl.addEventListener("change", renderEntries);
@@ -253,20 +263,23 @@ async function boot() {
 
 async function loadApplication() {
   hideLogin();
-  const [company, accounts, accountClasses] = await Promise.all([
+  const [company, accounts, accountClasses, journals] = await Promise.all([
     fetchJson("/api/company"),
     fetchJson("/api/accounts"),
-    fetchJson("/api/account-classes")
+    fetchJson("/api/account-classes"),
+    fetchJson("/api/journals")
   ]);
 
   state.accounts = accounts;
   state.accountClasses = accountClasses;
+  state.journals = journals;
   state.company = company;
   renderCompanyHeader();
   fillCompanyForm();
   form.elements.date.valueAsDate = new Date();
   form.elements.reference.value = nextManualReference();
   renderAccountOptions();
+  renderJournalOptions();
   initSubscriptionDefaults();
 
   addLine({ accountCode: "4111", debit: 250000, credit: 0 });
@@ -460,10 +473,12 @@ function syncSubscriptionLabel(side) {
 }
 
 async function refresh() {
-  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents, jobs, storedFiles, organizations] = await Promise.all([
+  const [company, accounts, entries, auxiliaryAccounts, journals, batches, subscriptionBatches, lettering, periods, auditEvents, jobs, storedFiles, organizations] = await Promise.all([
     fetchJson("/api/company"),
+    fetchJson("/api/accounts"),
     fetchJson("/api/journal-entries"),
     fetchJson("/api/auxiliary-accounts"),
+    fetchJson("/api/journals"),
     fetchJson("/api/bank-imports/batches"),
     fetchJson("/api/subscriptions"),
     fetchJson("/api/lettering"),
@@ -475,9 +490,11 @@ async function refresh() {
   ]);
 
   state.company = company;
+  state.accounts = accounts;
   state.organizations = organizations;
   state.entries = entries;
   state.auxiliaryAccounts = auxiliaryAccounts;
+  state.journals = journals;
   state.batches = batches;
   state.subscriptionBatches = subscriptionBatches;
   state.lettering = lettering;
@@ -494,6 +511,8 @@ async function refresh() {
   renderCompanyHeader();
   fillCompanyForm();
   renderAuxiliaryOptions();
+  renderAccountOptions();
+  renderJournalOptions();
   renderLedgerAccountFilter();
   renderLedgerAuxiliaryFilter();
   renderLetteringAccountFilter();
@@ -514,6 +533,7 @@ async function refresh() {
   renderUsers();
   renderJobs();
   renderOrganizations();
+  renderJournals();
 }
 
 async function fetchUsersForRole() {
@@ -652,6 +672,7 @@ async function submitEntry(event) {
     date: form.elements.date.value,
     reference: form.elements.reference.value,
     description: form.elements.description.value,
+    source: form.elements.source.value || "manual",
     lines: [...linesEl.querySelectorAll(".line-row")].map((row) => ({
       accountCode: parseAccountCode(row.querySelector(".account").value),
       auxiliaryCode: parseAuxiliaryCode(row.querySelector(".auxiliary").value),
@@ -702,6 +723,64 @@ async function submitAuxiliaryAccount(event) {
 
   auxiliaryForm.reset();
   setAuxiliaryMessage("Auxiliaire cree.");
+  await refresh();
+}
+
+async function submitAccount(event) {
+  event.preventDefault();
+  setAccountMessage("Creation du compte en cours...");
+
+  const payload = {
+    code: accountForm.elements.code.value,
+    label: accountForm.elements.label.value,
+    type: accountForm.elements.type.value
+  };
+
+  const response = await fetch("/api/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setAccountMessage(body.errors?.join(" ") ?? body.error ?? "Creation refusee.", true);
+    return;
+  }
+
+  accountForm.reset();
+  setAccountMessage(`Compte ${body.account.code} cree.`);
+  await refresh();
+}
+
+async function submitJournal(event) {
+  event.preventDefault();
+  if (!canManageUsers()) {
+    setJournalMessage("Droits administrateur requis.", true);
+    return;
+  }
+
+  setJournalMessage("Creation du journal en cours...");
+  const payload = {
+    code: journalForm.elements.code.value,
+    label: journalForm.elements.label.value,
+    type: journalForm.elements.type.value
+  };
+
+  const response = await fetch("/api/journals", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setJournalMessage(body.errors?.join(" ") ?? body.error ?? "Creation refusee.", true);
+    return;
+  }
+
+  journalForm.reset();
+  setJournalMessage(`Journal ${body.journal.code} cree.`);
   await refresh();
 }
 
@@ -1755,6 +1834,42 @@ function renderOrganizations() {
   }
 }
 
+function renderJournals() {
+  const canManage = canManageUsers();
+  journalForm.classList.toggle("is-disabled", !canManage);
+  [...journalForm.elements].forEach((element) => {
+    element.disabled = !canManage;
+  });
+
+  if (!canManage) {
+    journalsCountEl.textContent = "Acces reserve";
+    journalsTableEl.innerHTML = `
+      <tr>
+        <td colspan="4">La creation des journaux est reservee aux proprietaires et administrateurs.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  journalsCountEl.textContent = `${state.journals.length} journal${state.journals.length > 1 ? "x" : ""}`;
+  journalsTableEl.innerHTML = state.journals.map((journal) => `
+    <tr>
+      <td><strong>${escapeHtml(journal.code)}</strong></td>
+      <td>${escapeHtml(journal.label)}</td>
+      <td>${journalTypeLabel(journal.type)}</td>
+      <td><span class="status-pill">${journal.status === "active" ? "Actif" : "Archive"}</span></td>
+    </tr>
+  `).join("");
+
+  if (state.journals.length === 0) {
+    journalsTableEl.innerHTML = `
+      <tr>
+        <td colspan="4">Aucun journal trouve.</td>
+      </tr>
+    `;
+  }
+}
+
 function renderJobs() {
   const recentJobs = state.jobs.filter((job) => job.type === "financial-statements-export").slice(0, 8);
   jobsTableEl.innerHTML = recentJobs.map((job) => `
@@ -1913,6 +2028,24 @@ function renderAccountOptions() {
     .join("");
 }
 
+function renderJournalOptions() {
+  const options = [
+    `<option value="manual">Saisie manuelle</option>`,
+    ...state.journals
+      .filter((journal) => journal.status === "active")
+      .map((journal) => `<option value="${escapeHtml(journal.code)}">${escapeHtml(journal.code)} - ${escapeHtml(journal.label)}</option>`)
+  ];
+  entryJournalEl.innerHTML = options.join("");
+  journalSourceEl.innerHTML = `
+    <option value="all">Toutes sources</option>
+    <option value="manual">Saisie manuelle</option>
+    <option value="subscription">Abonnement</option>
+    <option value="bank-csv">Import bancaire</option>
+    <option value="seed">Demo</option>
+    ${state.journals.map((journal) => `<option value="${escapeHtml(journal.code)}">${escapeHtml(journal.code)} - ${escapeHtml(journal.label)}</option>`).join("")}
+  `;
+}
+
 function renderAuxiliaryOptions() {
   auxiliaryOptionsEl.innerHTML = state.auxiliaryAccounts
     .map((auxiliary) => `<option value="${escapeHtml(auxiliaryInputValue(auxiliary.code))}"></option>`)
@@ -1964,7 +2097,7 @@ function renderAccountCatalog() {
       <td>${escapeHtml(account.label)}</td>
       <td>Classe ${escapeHtml(account.classCode)} - ${escapeHtml(account.classLabel)}</td>
       <td>${escapeHtml(account.groupCode)} - ${escapeHtml(account.groupLabel)}</td>
-      <td>${typeLabel(account.reportType ?? account.type)}</td>
+      <td>${typeLabel(account.reportType ?? account.type)}${account.source === "custom" ? " - dossier" : ""}</td>
     </tr>
   `).join("");
 }
@@ -2293,6 +2426,11 @@ function setAuxiliaryMessage(text, isError = false) {
   auxiliaryMessageEl.classList.toggle("error", isError);
 }
 
+function setAccountMessage(text, isError = false) {
+  accountMessageEl.textContent = text;
+  accountMessageEl.classList.toggle("error", isError);
+}
+
 function setUserMessage(text, isError = false) {
   userMessageEl.textContent = text;
   userMessageEl.classList.toggle("error", isError);
@@ -2301,6 +2439,11 @@ function setUserMessage(text, isError = false) {
 function setOrganizationMessage(text, isError = false) {
   organizationMessageEl.textContent = text;
   organizationMessageEl.classList.toggle("error", isError);
+}
+
+function setJournalMessage(text, isError = false) {
+  journalMessageEl.textContent = text;
+  journalMessageEl.classList.toggle("error", isError);
 }
 
 function setJobsMessage(text, isError = false) {
@@ -2432,12 +2575,26 @@ function formatDate(value) {
 }
 
 function sourceLabel(source) {
+  const journal = state.journals.find((candidate) => candidate.code === source);
+  if (journal) return `${journal.code} - ${journal.label}`;
   return {
     "bank-csv": "Import bancaire",
     manual: "Saisie manuelle",
     subscription: "Abonnement",
     seed: "Demo"
   }[source] ?? source ?? "Inconnu";
+}
+
+function journalTypeLabel(type) {
+  return {
+    misc: "Operations diverses",
+    bank: "Banque",
+    cash: "Caisse",
+    sales: "Ventes",
+    purchase: "Achats",
+    payroll: "Paie",
+    closing: "Cloture"
+  }[type] ?? type ?? "Inconnu";
 }
 
 function typeLabel(type) {

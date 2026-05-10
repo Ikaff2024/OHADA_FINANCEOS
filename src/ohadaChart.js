@@ -398,6 +398,14 @@ export const accounts = [...accountGroups, ...detailedAccounts]
 
 export const accountByCode = new Map(accounts.map((account) => [account.code, account]));
 
+export function buildAccountCatalog(customAccounts = []) {
+  const merged = new Map(accounts.map((account) => [account.code, account]));
+  for (const account of customAccounts) {
+    merged.set(account.code, enrichAccount({ ...account, source: "custom" }));
+  }
+  return [...merged.values()].sort((a, b) => a.code.localeCompare(b.code, "fr", { numeric: true }));
+}
+
 export function inferAccountType(code) {
   const account = accountByCode.get(String(code));
   if (account) return normalizeReportType(account.type);
@@ -405,7 +413,7 @@ export function inferAccountType(code) {
   return normalizeReportType(inferRawAccountType(code));
 }
 
-function enrichAccount(account) {
+export function enrichAccount(account) {
   const classCode = account.code.at(0);
   const groupCode = account.code.slice(0, 2);
   const accountClass = accountClasses.find((candidate) => candidate.code === classCode);
@@ -419,7 +427,7 @@ function enrichAccount(account) {
     classLabel: accountClass?.label ?? "Non classe",
     groupCode,
     groupLabel: group?.[1] ?? accountClass?.label ?? "Non classe",
-    source: "SYSCOHADA PDF"
+    source: account.source ?? "SYSCOHADA PDF"
   };
 }
 

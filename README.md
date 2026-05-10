@@ -22,6 +22,8 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Creation et lecture d'une entreprise de demonstration
 - Parametrage de l'entreprise, de la devise et de l'exercice
 - Plan comptable SYSCOHADA enrichi depuis les PDF de reference
+- Creation de comptes comptables propres au dossier
+- Creation de journaux comptables propres au dossier
 - Saisie d'ecritures comptables equilibrees
 - References obligatoires sur les ecritures
 - Validation des comptes et des montants
@@ -101,7 +103,10 @@ Mot de passe: admin12345
 - `GET /api/company`
 - `PUT /api/company`
 - `GET /api/accounts`
+- `POST /api/accounts`
 - `GET /api/account-classes`
+- `GET /api/journals`
+- `POST /api/journals`
 - `GET /api/auxiliary-accounts`
 - `POST /api/auxiliary-accounts`
 - `GET /api/accounting-periods`

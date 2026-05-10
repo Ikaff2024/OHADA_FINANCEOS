@@ -163,6 +163,49 @@ try {
   assert.equal(users.status, 200);
   assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local" && user.name === "Comptable Demo Senior"), true);
 
+  const createJournal = await fetch(`http://localhost:${port}/api/journals`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ code: "CA", label: "Caisse test", type: "cash" })
+  });
+  assert.equal(createJournal.status, 201);
+  assert.equal((await createJournal.json()).journal.code, "CA");
+
+  const journals = await fetch(`http://localhost:${port}/api/journals`, { headers: authHeaders });
+  assert.equal(journals.status, 200);
+  assert.equal((await journals.json()).some((journal) => journal.code === "CA"), true);
+
+  const createAccount = await fetch(`http://localhost:${port}/api/accounts`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ code: "7088", label: "Produits digitaux test", type: "revenue" })
+  });
+  assert.equal(createAccount.status, 201);
+  assert.equal((await createAccount.json()).account.code, "7088");
+
+  const accounts = await fetch(`http://localhost:${port}/api/accounts`, { headers: authHeaders });
+  assert.equal(accounts.status, 200);
+  assert.equal((await accounts.json()).some((account) => account.code === "7088" && account.source === "custom"), true);
+
+  const customAccountEntry = await fetch(`http://localhost:${port}/api/journal-entries`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      date: "2026-02-15",
+      reference: "CA-001",
+      description: "Vente caisse compte custom",
+      source: "CA",
+      lines: [
+        { accountCode: "5211", debit: 1000, credit: 0 },
+        { accountCode: "7088", debit: 0, credit: 1000 }
+      ]
+    })
+  });
+  assert.equal(customAccountEntry.status, 201);
+
+  const ledgerWithCustomAccount = await fetchJson(`http://localhost:${port}/api/reports/general-ledger`);
+  assert.equal(ledgerWithCustomAccount.some((row) => row.reference === "CA-001" && row.accountCode === "7088" && row.accountLabel === "Produits digitaux test"), true);
+
   const createJob = await fetch(`http://localhost:${port}/api/jobs`, {
     method: "POST",
     headers: authHeaders,

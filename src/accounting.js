@@ -1,8 +1,9 @@
-import { accountByCode, accounts, inferAccountType } from "./ohadaChart.js";
+import { accounts, inferAccountType } from "./ohadaChart.js";
 
-export function validateJournalEntry(input) {
+export function validateJournalEntry(input, accountCatalog = accounts) {
   const errors = [];
   const lines = Array.isArray(input.lines) ? input.lines : [];
+  const accountByCode = mapAccounts(accountCatalog);
 
   if (!input.date || Number.isNaN(Date.parse(input.date))) {
     errors.push("La date de l'ecriture est obligatoire.");
@@ -76,8 +77,9 @@ export function normalizeJournalEntry(input) {
   };
 }
 
-export function buildGeneralLedger(entries, auxiliaryAccounts = []) {
+export function buildGeneralLedger(entries, auxiliaryAccounts = [], accountCatalog = accounts) {
   const auxiliaryByCode = new Map(auxiliaryAccounts.map((auxiliary) => [auxiliary.code, auxiliary]));
+  const accountByCode = mapAccounts(accountCatalog);
   return entries
     .flatMap((entry) => entry.lines.map((line, index) => {
       const account = accountByCode.get(String(line.accountCode));
@@ -105,8 +107,8 @@ export function buildGeneralLedger(entries, auxiliaryAccounts = []) {
     );
 }
 
-export function buildTrialBalance(entries) {
-  const rows = accounts.map((account) => ({
+export function buildTrialBalance(entries, accountCatalog = accounts) {
+  const rows = accountCatalog.map((account) => ({
     code: account.code,
     label: account.label,
     type: account.reportType ?? account.type,
@@ -149,8 +151,8 @@ export function buildTrialBalance(entries) {
     .filter((row) => row.debit !== 0 || row.credit !== 0);
 }
 
-export function buildIncomeStatement(entries) {
-  const balance = buildTrialBalance(entries);
+export function buildIncomeStatement(entries, accountCatalog = accounts) {
+  const balance = buildTrialBalance(entries, accountCatalog);
   const revenue = sumByType(balance, "revenue", (row) => row.credit - row.debit);
   const expenses = sumByType(balance, "expense", (row) => row.debit - row.credit);
 
@@ -162,9 +164,9 @@ export function buildIncomeStatement(entries) {
   };
 }
 
-export function buildBalanceSheet(entries) {
-  const balance = buildTrialBalance(entries);
-  const income = buildIncomeStatement(entries);
+export function buildBalanceSheet(entries, accountCatalog = accounts) {
+  const balance = buildTrialBalance(entries, accountCatalog);
+  const income = buildIncomeStatement(entries, accountCatalog);
   const assets = sumByType(balance, "asset", (row) => row.debit - row.credit);
   const liabilities = sumByType(balance, "liability", (row) => row.credit - row.debit);
   const equity = sumByType(balance, "equity", (row) => row.credit - row.debit);
@@ -226,9 +228,9 @@ export function buildAuxiliaryBalance(entries, auxiliaryAccounts = []) {
     .sort((a, b) => a.accountCode.localeCompare(b.accountCode, "fr", { numeric: true }) || a.code.localeCompare(b.code, "fr", { numeric: true }));
 }
 
-export function buildClosingControls(entries, periods = []) {
-  const trialBalance = buildTrialBalance(entries);
-  const balanceSheet = buildBalanceSheet(entries);
+export function buildClosingControls(entries, periods = [], accountCatalog = accounts) {
+  const trialBalance = buildTrialBalance(entries, accountCatalog);
+  const balanceSheet = buildBalanceSheet(entries, accountCatalog);
   const totals = trialBalance.reduce(
     (sum, row) => ({
       debit: roundMoney(sum.debit + row.debit),
@@ -339,6 +341,10 @@ function createUnknownRow(code) {
     credit: 0,
     balance: 0
   };
+}
+
+function mapAccounts(accountCatalog) {
+  return new Map(accountCatalog.map((account) => [account.code, account]));
 }
 
 function balanceForAccount(rows, accountCode) {

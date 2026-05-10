@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { normalizeJournalEntry } from "./accounting.js";
-import { accountByCode } from "./ohadaChart.js";
+import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
 import { config, rootDir } from "./config.js";
 import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
 
@@ -24,6 +24,13 @@ const seed = {
   auxiliaryAccounts: [
     { code: "C-ALPHA", label: "Client Alpha", accountCode: "4111", createdAt: "2026-05-09T15:14:25.084Z" },
     { code: "F-DEMO", label: "Fournisseur Demo", accountCode: "4011", createdAt: "2026-05-09T15:14:25.084Z" }
+  ],
+  customAccounts: [],
+  journals: [
+    { code: "OD", label: "Operations diverses", type: "misc", status: "active", createdAt: "2026-05-09T15:14:25.084Z" },
+    { code: "BQ", label: "Banque", type: "bank", status: "active", createdAt: "2026-05-09T15:14:25.084Z" },
+    { code: "VT", label: "Ventes", type: "sales", status: "active", createdAt: "2026-05-09T15:14:25.084Z" },
+    { code: "AC", label: "Achats", type: "purchase", status: "active", createdAt: "2026-05-09T15:14:25.084Z" }
   ],
   classificationCorrections: [],
   bankImportBatches: [],
@@ -184,6 +191,7 @@ export async function addOrganization(input) {
     insertOrganization(db, organization);
     insertCompany(db, company);
     insertPeriod(db, period);
+    for (const journal of seed.journals) insertJournal(db, { ...journal, organizationId: id });
     insertUser(db, owner);
     insertAuditEvent(db, {
       organizationId: id,
@@ -395,6 +403,72 @@ export async function readStoredFiles(organizationId = defaultOrganizationId) {
   `).all(organizationId).map(mapStoredFile);
 }
 
+export async function readAccounts(organizationId = defaultOrganizationId) {
+  const db = await getDatabase();
+  return accountCatalog(db, organizationId);
+}
+
+export async function addCustomAccount(input) {
+  const db = await getDatabase();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const account = enrichAccount({
+    code: String(input.code || "").trim(),
+    label: String(input.label || "").trim(),
+    type: String(input.type || "").trim(),
+    source: "custom"
+  });
+  const errors = validateCustomAccount(db, account, organizationId);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  withTransaction(db, () => {
+    insertCustomAccount(db, { ...account, organizationId, createdAt: new Date().toISOString() });
+    insertAuditEvent(db, {
+      organizationId,
+      action: "account.create",
+      entityType: "account",
+      entityId: account.code,
+      summary: `Compte cree: ${account.code} - ${account.label}`,
+      details: account
+    });
+  });
+
+  return { ok: true, account: accountCatalog(db, organizationId).find((candidate) => candidate.code === account.code) };
+}
+
+export async function readJournals(organizationId = defaultOrganizationId) {
+  const db = await getDatabase();
+  return readAllJournals(db, organizationId);
+}
+
+export async function addJournal(input) {
+  const db = await getDatabase();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const journal = {
+    code: String(input.code || "").trim().toUpperCase(),
+    organizationId,
+    label: String(input.label || "").trim(),
+    type: normalizeJournalType(input.type),
+    status: "active",
+    createdAt: new Date().toISOString()
+  };
+  const errors = validateJournal(db, journal);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  withTransaction(db, () => {
+    insertJournal(db, journal);
+    insertAuditEvent(db, {
+      organizationId,
+      action: "journal.create_ref",
+      entityType: "journal",
+      entityId: journal.code,
+      summary: `Journal cree: ${journal.code} - ${journal.label}`,
+      details: journal
+    });
+  });
+
+  return { ok: true, journal };
+}
+
 export async function updateCompany(input) {
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
@@ -439,6 +513,9 @@ export async function addJournalEntries(entries) {
   const db = await getDatabase();
   const normalizedEntries = entries.map((entry) => normalizeJournalEntry(entry));
   const organizationId = normalizedEntries[0]?.organizationId ?? defaultOrganizationId;
+  for (const entry of normalizedEntries) {
+    ensureKnownJournal(db, entry.source, organizationId);
+  }
   assertEntriesInOpenPeriods(db, normalizedEntries);
   withTransaction(db, () => {
     for (const entry of normalizedEntries) {
@@ -471,7 +548,7 @@ export async function addAuxiliaryAccount(input) {
   if (!accountCode) {
     return { ok: false, status: 422, error: "Le compte collectif est obligatoire." };
   }
-  if (!accountByCode.has(accountCode) || accountCode.length !== 4) {
+  if (!accountCatalog(db, input.organizationId ?? defaultOrganizationId).some((account) => account.code === accountCode && account.isPostable)) {
     return { ok: false, status: 422, error: "Le compte collectif doit etre un compte OHADA a 4 chiffres." };
   }
 
@@ -813,6 +890,7 @@ async function getDatabase() {
   ensureDefaultOrganizationAndUser(database);
   ensureCompanyPeriod(database);
   ensureDefaultAuxiliaries(database);
+  ensureDefaultJournals(database);
   return database;
 }
 
@@ -883,6 +961,25 @@ function createSchema(db) {
       label TEXT NOT NULL,
       account_code TEXT NOT NULL,
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS custom_accounts (
+      code TEXT NOT NULL,
+      organization_id TEXT,
+      label TEXT NOT NULL,
+      type TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, code)
+    );
+
+    CREATE TABLE IF NOT EXISTS journals (
+      code TEXT NOT NULL,
+      organization_id TEXT,
+      label TEXT NOT NULL,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('active', 'archived')),
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (organization_id, code)
     );
 
     CREATE TABLE IF NOT EXISTS bank_import_batches (
@@ -1001,6 +1098,8 @@ function createSchema(db) {
   addOrganizationColumnIfMissing(db, "companies");
   addOrganizationColumnIfMissing(db, "journal_entries");
   addOrganizationColumnIfMissing(db, "auxiliary_accounts");
+  addOrganizationColumnIfMissing(db, "custom_accounts");
+  addOrganizationColumnIfMissing(db, "journals");
   addOrganizationColumnIfMissing(db, "bank_import_batches");
   addOrganizationColumnIfMissing(db, "subscription_batches");
   addOrganizationColumnIfMissing(db, "lettering_groups");
@@ -1016,6 +1115,8 @@ function createSchema(db) {
   db.exec("CREATE INDEX IF NOT EXISTS idx_journal_entries_reference ON journal_entries(reference)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_journal_entries_organization_id ON journal_entries(organization_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_auxiliary_accounts_organization_id ON auxiliary_accounts(organization_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_custom_accounts_organization_id ON custom_accounts(organization_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_journals_organization_id ON journals(organization_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_jobs_organization_id ON jobs(organization_id)");
 }
 
@@ -1035,6 +1136,8 @@ async function readLegacyJson() {
     legacy.classificationCorrections ??= [];
     legacy.bankImportBatches ??= [];
     legacy.auxiliaryAccounts ??= [];
+    legacy.customAccounts ??= [];
+    legacy.journals ??= [];
     legacy.letteringGroups ??= [];
     return legacy;
   } catch {
@@ -1050,7 +1153,10 @@ function readSnapshot(db, organizationId = defaultOrganizationId) {
     jobs: db.prepare("SELECT * FROM jobs WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapJob),
     storedFiles: db.prepare("SELECT * FROM stored_files WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapStoredFile),
     accountingPeriods: readPeriods(db, organizationId),
+    accounts: accountCatalog(db, organizationId),
     auxiliaryAccounts: readAuxiliaryAccounts(db, organizationId),
+    customAccounts: readCustomAccounts(db, organizationId),
+    journals: readAllJournals(db, organizationId),
     classificationCorrections: readCorrections(db, organizationId),
     bankImportBatches: readBatches(db, organizationId),
     subscriptionBatches: readSubscriptionBatches(db, organizationId),
@@ -1065,6 +1171,8 @@ function writeSnapshot(db, snapshot) {
     insertCompany(db, snapshot.company);
     for (const period of snapshot.accountingPeriods ?? []) insertPeriod(db, period);
     for (const auxiliary of snapshot.auxiliaryAccounts ?? []) insertAuxiliaryAccount(db, auxiliary);
+    for (const account of snapshot.customAccounts ?? []) insertCustomAccount(db, account);
+    for (const journal of snapshot.journals ?? seed.journals) insertJournal(db, journal);
     for (const correction of snapshot.classificationCorrections ?? []) insertCorrection(db, correction);
     for (const batch of snapshot.bankImportBatches ?? []) insertBatch(db, batch);
     for (const batch of snapshot.subscriptionBatches ?? []) insertSubscriptionBatch(db, batch);
@@ -1355,6 +1463,54 @@ function ensureDefaultAuxiliaries(db) {
   }
 }
 
+function ensureDefaultJournals(db) {
+  const organizations = readAllOrganizations(db);
+  for (const organization of organizations) {
+    const count = Number(db.prepare("SELECT COUNT(*) AS count FROM journals WHERE organization_id = ?").get(organization.id).count);
+    if (count > 0) continue;
+    for (const journal of seed.journals) {
+      insertJournal(db, { ...journal, organizationId: organization.id });
+    }
+  }
+}
+
+function validateCustomAccount(db, account, organizationId) {
+  const errors = [];
+  if (!/^\d{4}$/.test(account.code)) errors.push("Le compte doit contenir exactement 4 chiffres.");
+  if (account.label.length < 2) errors.push("Le libelle du compte est obligatoire.");
+  if (!["asset", "liability", "equity", "expense", "revenue"].includes(account.type)) {
+    errors.push("Le type du compte est invalide.");
+  }
+  if (accountByCode.has(account.code)) errors.push("Ce compte existe deja dans le plan SYSCOHADA.");
+  if (readCustomAccount(db, account.code, organizationId)) errors.push("Ce compte existe deja dans ce dossier.");
+  return errors;
+}
+
+function validateJournal(db, journal) {
+  const errors = [];
+  if (!/^[A-Z0-9]{2,8}$/.test(journal.code)) errors.push("Le code journal doit contenir 2 a 8 caracteres alphanumeriques.");
+  if (journal.label.length < 2) errors.push("Le libelle du journal est obligatoire.");
+  if (!["misc", "bank", "cash", "sales", "purchase", "payroll", "closing"].includes(journal.type)) {
+    errors.push("Le type du journal est invalide.");
+  }
+  if (readJournal(db, journal.code, journal.organizationId)) errors.push("Ce journal existe deja dans ce dossier.");
+  return errors;
+}
+
+function normalizeJournalType(type) {
+  return ["misc", "bank", "cash", "sales", "purchase", "payroll", "closing"].includes(type) ? type : "misc";
+}
+
+function ensureKnownJournal(db, code, organizationId) {
+  const journalCode = String(code || "manual").trim();
+  if (["manual", "seed", "subscription", "bank-csv"].includes(journalCode)) return;
+  if (!readJournal(db, journalCode, organizationId)) {
+    const error = new Error(`Journal inconnu: ${journalCode}.`);
+    error.status = 422;
+    throw error;
+  }
+}
+
 function assertEntriesInOpenPeriods(db, entries) {
   for (const entry of entries) {
     const lockedPeriod = findLockedPeriodForDate(db, entry.date);
@@ -1393,6 +1549,7 @@ function readCorrections(db, organizationId = defaultOrganizationId) {
 }
 
 function readAuxiliaryAccounts(db, organizationId = defaultOrganizationId) {
+  const accountsByCode = new Map(accountCatalog(db, organizationId).map((account) => [account.code, account]));
   return db.prepare(`
     SELECT *
     FROM auxiliary_accounts
@@ -1403,9 +1560,41 @@ function readAuxiliaryAccounts(db, organizationId = defaultOrganizationId) {
     organizationId: row.organization_id ?? defaultOrganizationId,
     label: row.label,
     accountCode: row.account_code,
-    accountLabel: accountLabel(row.account_code),
+    accountLabel: accountsByCode.get(row.account_code)?.label ?? accountLabel(row.account_code),
     createdAt: row.created_at
   }));
+}
+
+function accountCatalog(db, organizationId = defaultOrganizationId) {
+  return buildAccountCatalog(readCustomAccounts(db, organizationId));
+}
+
+function readCustomAccounts(db, organizationId = defaultOrganizationId) {
+  return db.prepare(`
+    SELECT *
+    FROM custom_accounts
+    WHERE organization_id = ?
+    ORDER BY code ASC
+  `).all(organizationId).map(mapCustomAccount);
+}
+
+function readCustomAccount(db, code, organizationId = defaultOrganizationId) {
+  const row = db.prepare("SELECT * FROM custom_accounts WHERE code = ? AND organization_id = ?").get(code, organizationId);
+  return row ? mapCustomAccount(row) : null;
+}
+
+function readAllJournals(db, organizationId = defaultOrganizationId) {
+  return db.prepare(`
+    SELECT *
+    FROM journals
+    WHERE organization_id = ?
+    ORDER BY code ASC
+  `).all(organizationId).map(mapJournal);
+}
+
+function readJournal(db, code, organizationId = defaultOrganizationId) {
+  const row = db.prepare("SELECT * FROM journals WHERE code = ? AND organization_id = ?").get(code, organizationId);
+  return row ? mapJournal(row) : null;
 }
 
 function readBatches(db, organizationId = defaultOrganizationId) {
@@ -1701,6 +1890,35 @@ function insertAuxiliaryAccount(db, auxiliary) {
   );
 }
 
+function insertCustomAccount(db, account) {
+  db.prepare(`
+    INSERT OR REPLACE INTO custom_accounts
+    (code, organization_id, label, type, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    account.code,
+    account.organizationId ?? defaultOrganizationId,
+    account.label,
+    account.type,
+    account.createdAt ?? new Date().toISOString()
+  );
+}
+
+function insertJournal(db, journal) {
+  db.prepare(`
+    INSERT OR REPLACE INTO journals
+    (code, organization_id, label, type, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    journal.code,
+    journal.organizationId ?? defaultOrganizationId,
+    journal.label,
+    journal.type,
+    journal.status ?? "active",
+    journal.createdAt ?? new Date().toISOString()
+  );
+}
+
 function insertBatch(db, batch) {
   db.prepare(`
     INSERT OR REPLACE INTO bank_import_batches
@@ -1871,6 +2089,28 @@ function mapStoredFile(row) {
     path: row.path,
     mimeType: row.mime_type,
     size: row.size,
+    createdAt: row.created_at
+  };
+}
+
+function mapCustomAccount(row) {
+  return enrichAccount({
+    code: row.code,
+    organizationId: row.organization_id ?? defaultOrganizationId,
+    label: row.label,
+    type: row.type,
+    source: "custom",
+    createdAt: row.created_at
+  });
+}
+
+function mapJournal(row) {
+  return {
+    code: row.code,
+    organizationId: row.organization_id ?? defaultOrganizationId,
+    label: row.label,
+    type: row.type,
+    status: row.status,
     createdAt: row.created_at
   };
 }

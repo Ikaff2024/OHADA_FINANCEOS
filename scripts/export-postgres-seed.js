@@ -11,6 +11,8 @@ const tables = [
   "companies",
   "accounting_periods",
   "auxiliary_accounts",
+  "custom_accounts",
+  "journals",
   "journal_entries",
   "journal_lines",
   "classification_corrections",

@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS auxiliary_accounts (
   created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS custom_accounts (
+  code TEXT NOT NULL,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  label TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('asset', 'liability', 'equity', 'expense', 'revenue')),
+  created_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (organization_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS journals (
+  code TEXT NOT NULL,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
+  label TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('misc', 'bank', 'cash', 'sales', 'purchase', 'payroll', 'closing')),
+  status TEXT NOT NULL CHECK (status IN ('active', 'archived')),
+  created_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (organization_id, code)
+);
+
 CREATE TABLE IF NOT EXISTS journal_entries (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id),
@@ -176,6 +195,8 @@ CREATE INDEX IF NOT EXISTS idx_journal_entries_bank_fingerprint ON journal_entri
 CREATE INDEX IF NOT EXISTS idx_journal_entries_reference ON journal_entries(reference);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_auxiliary_code ON journal_lines(auxiliary_code);
 CREATE INDEX IF NOT EXISTS idx_auxiliary_accounts_organization_id ON auxiliary_accounts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_custom_accounts_organization_id ON custom_accounts(organization_id);
+CREATE INDEX IF NOT EXISTS idx_journals_organization_id ON journals(organization_id);
 CREATE INDEX IF NOT EXISTS idx_bank_import_batches_created_at ON bank_import_batches(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_subscription_batches_created_at ON subscription_batches(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lettering_groups_account_code ON lettering_groups(account_code);

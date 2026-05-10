@@ -156,6 +156,12 @@
                     <input name="description" type="text" placeholder="Ex: Vente services client" required />
                   </label>
                 </div>
+                <div class="form-row single">
+                  <label>
+                    Journal
+                    <select name="source" id="entry-journal"></select>
+                  </label>
+                </div>
 
                 <div class="entry-balance-tools">
                   <label class="switch-line">
@@ -487,6 +493,34 @@
                 <option value="all">Toutes classes</option>
               </select>
             </div>
+            <form id="account-form" class="user-form">
+              <div class="form-row">
+                <label>
+                  Code compte
+                  <input name="code" type="text" maxlength="4" placeholder="Ex: 7068" required />
+                </label>
+                <label>
+                  Libelle
+                  <input name="label" type="text" placeholder="Ex: Prestations digitales" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Type
+                  <select name="type">
+                    <option value="asset">Actif</option>
+                    <option value="liability">Passif</option>
+                    <option value="equity">Capitaux propres</option>
+                    <option value="expense">Charge</option>
+                    <option value="revenue">Produit</option>
+                  </select>
+                </label>
+                <div class="form-actions inline-actions">
+                  <button type="submit" class="btn btn-primary">Creer compte</button>
+                </div>
+              </div>
+            </form>
+            <div class="message" id="account-message"></div>
             <div class="account-classes" id="account-classes"></div>
             <div class="table-wrap">
               <table>
@@ -792,6 +826,60 @@
           <article class="panel users-panel">
             <div class="section-title">
               <div>
+                <p class="eyebrow">Comptabilite</p>
+                <h2>Journaux</h2>
+              </div>
+              <span class="status-pill" id="journals-count">0 journal</span>
+            </div>
+
+            <form id="journal-form" class="user-form">
+              <div class="form-row">
+                <label>
+                  Code journal
+                  <input name="code" type="text" maxlength="8" placeholder="Ex: CAISSE" required />
+                </label>
+                <label>
+                  Libelle
+                  <input name="label" type="text" placeholder="Ex: Caisse principale" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Type
+                  <select name="type">
+                    <option value="misc">Operations diverses</option>
+                    <option value="bank">Banque</option>
+                    <option value="cash">Caisse</option>
+                    <option value="sales">Ventes</option>
+                    <option value="purchase">Achats</option>
+                    <option value="payroll">Paie</option>
+                    <option value="closing">Cloture</option>
+                  </select>
+                </label>
+                <div class="form-actions inline-actions">
+                  <button type="submit" class="btn btn-primary">Creer journal</button>
+                </div>
+              </div>
+            </form>
+            <div class="message" id="journal-message"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Libelle</th>
+                    <th>Type</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="journals-table"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel users-panel">
+            <div class="section-title">
+              <div>
                 <p class="eyebrow">Administration</p>
                 <h2>Utilisateurs et roles</h2>
               </div>
@@ -877,6 +965,6 @@
     <datalist id="account-options"></datalist>
     <datalist id="auxiliary-options"></datalist>
 
-    <script type="module" src="/app.js?v=20260510-organizations"></script>
+    <script type="module" src="/app.js?v=20260510-journals-accounts"></script>
   </body>
 </html>

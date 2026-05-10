@@ -18,11 +18,13 @@ import {
   sampleBankCsv,
   transactionsToJournalEntries
 } from "./bankImport.js";
-import { accountClasses, accounts } from "./ohadaChart.js";
+import { accountClasses } from "./ohadaChart.js";
 import {
   addAccountingPeriod,
+  addCustomAccount,
   addOrganization,
   addAuxiliaryAccount,
+  addJournal,
   addUser,
   addBankImportBatch,
   addClassificationCorrections,
@@ -39,7 +41,9 @@ import {
   loginUser,
   logoutUser,
   readAuthContext,
+  readAccounts,
   readDb,
+  readJournals,
   readJobs,
   readLetteringState,
   readOrganizations,
@@ -212,12 +216,33 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/accounts") {
-    sendJson(response, 200, accounts);
+    sendJson(response, 200, await readAccounts(organizationId));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/accounts") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
+    const result = await addCustomAccount({ ...(await readJson(request)), organizationId });
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/account-classes") {
     sendJson(response, 200, accountClasses);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/journals") {
+    sendJson(response, 200, await readJournals(organizationId));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/journals") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
+    const result = await addJournal({ ...(await readJson(request)), organizationId });
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
 
@@ -392,7 +417,7 @@ async function handleApi(request, response, url) {
     const batchId = crypto.randomUUID();
     const normalizedEntries = [];
     for (const draft of transactionsToJournalEntries(importableTransactions)) {
-      const validation = validateJournalEntry(draft);
+      const validation = validateJournalEntry(draft, db.accounts);
       if (!validation.ok) {
         sendJson(response, 422, { errors: validation.errors, transaction: draft.description });
         return;
@@ -438,7 +463,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const validation = validateJournalEntry(payload);
+    const validation = validateJournalEntry(payload, db.accounts);
 
     if (!validation.ok) {
       sendJson(response, 422, { errors: validation.errors });
@@ -452,12 +477,12 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/trial-balance") {
-    sendJson(response, 200, buildTrialBalance(entriesForReportPeriod(db.journalEntries, url)));
+    sendJson(response, 200, buildTrialBalance(entriesForReportPeriod(db.journalEntries, url), db.accounts));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/general-ledger") {
-    sendJson(response, 200, buildGeneralLedger(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts));
+    sendJson(response, 200, buildGeneralLedger(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, db.accounts));
     return;
   }
 
@@ -467,17 +492,17 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/balance-sheet") {
-    sendJson(response, 200, buildBalanceSheet(entriesForReportPeriod(db.journalEntries, url)));
+    sendJson(response, 200, buildBalanceSheet(entriesForReportPeriod(db.journalEntries, url), db.accounts));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/income-statement") {
-    sendJson(response, 200, buildIncomeStatement(entriesForReportPeriod(db.journalEntries, url)));
+    sendJson(response, 200, buildIncomeStatement(entriesForReportPeriod(db.journalEntries, url), db.accounts));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/closing-controls") {
-    sendJson(response, 200, buildClosingControls(entriesForReportPeriod(db.journalEntries, url), db.accountingPeriods));
+    sendJson(response, 200, buildClosingControls(entriesForReportPeriod(db.journalEntries, url), db.accountingPeriods, db.accounts));
     return;
   }
 
@@ -532,12 +557,12 @@ async function processNextJob() {
       generatedAt,
       period: { from: from || null, to: to || null },
       company: snapshot.company,
-      trialBalance: buildTrialBalance(entries),
-      generalLedger: buildGeneralLedger(entries, snapshot.auxiliaryAccounts),
+      trialBalance: buildTrialBalance(entries, snapshot.accounts),
+      generalLedger: buildGeneralLedger(entries, snapshot.auxiliaryAccounts, snapshot.accounts),
       auxiliaryBalance: buildAuxiliaryBalance(entries, snapshot.auxiliaryAccounts),
-      balanceSheet: buildBalanceSheet(entries),
-      incomeStatement: buildIncomeStatement(entries),
-      closingControls: buildClosingControls(entries, snapshot.accountingPeriods)
+      balanceSheet: buildBalanceSheet(entries, snapshot.accounts),
+      incomeStatement: buildIncomeStatement(entries, snapshot.accounts),
+      closingControls: buildClosingControls(entries, snapshot.accountingPeriods, snapshot.accounts)
     };
     const periodSlug = [from || "debut", to || "fin"].join("_");
     const saved = await saveTextFile({
