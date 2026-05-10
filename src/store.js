@@ -169,6 +169,41 @@ export async function addUser(input) {
   return { ok: true, user: publicUser(user) };
 }
 
+export async function updateUser(userId, input, actor) {
+  const db = await getDatabase();
+  const current = readUserById(db, userId);
+  if (!current) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+
+  const next = {
+    ...current,
+    name: String(input.name ?? current.name).trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : current.role,
+    status: ["active", "disabled"].includes(input.status) ? input.status : current.status
+  };
+
+  if (current.id === actor?.user?.id && next.status !== "active") {
+    return { ok: false, status: 422, error: "Vous ne pouvez pas desactiver votre propre compte." };
+  }
+
+  if (current.role === "owner" && next.role !== "owner" && readOwnerCount(db, current.organizationId) <= 1) {
+    return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire." };
+  }
+
+  if (current.role === "owner" && next.status !== "active" && readOwnerCount(db, current.organizationId) <= 1) {
+    return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire actif." };
+  }
+
+  if (next.name.length < 2) return { ok: false, status: 422, error: "Le nom utilisateur est obligatoire." };
+
+  db.prepare(`
+    UPDATE users
+    SET name = ?, role = ?, status = ?
+    WHERE id = ?
+  `).run(next.name, next.role, next.status, current.id);
+
+  return { ok: true, user: publicUser(readUserById(db, current.id)) };
+}
+
 export async function enqueueJob(input) {
   const db = await getDatabase();
   const job = {
@@ -945,6 +980,19 @@ function readAllUsers(db) {
 function readUserByEmail(db, email) {
   const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   return row ? mapUser(row) : null;
+}
+
+function readUserById(db, userId) {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  return row ? mapUser(row) : null;
+}
+
+function readOwnerCount(db, organizationId) {
+  return Number(db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM users
+    WHERE organization_id = ? AND role = 'owner' AND status = 'active'
+  `).get(organizationId).count);
 }
 
 function readPeriods(db) {

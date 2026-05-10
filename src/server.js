@@ -44,6 +44,7 @@ import {
   readUsers,
   saveTextFile,
   setAccountingPeriodStatus,
+  updateUser,
   updateCompany,
   voidBankImportBatch
 } from "./store.js";
@@ -118,6 +119,15 @@ async function handleApi(request, response, url) {
     if (!auth) return;
     const result = await addUser(await readJson(request));
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    return;
+  }
+
+  if (request.method === "PATCH" && url.pathname.startsWith("/api/users/")) {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
+    const userId = decodeURIComponent(url.pathname.split("/").at(-1));
+    const result = await updateUser(userId, await readJson(request), auth);
+    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
     return;
   }
 

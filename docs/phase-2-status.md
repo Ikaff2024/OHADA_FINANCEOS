@@ -14,6 +14,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Ecran de connexion frontend, session conservee dans le navigateur et bouton de deconnexion.
 - Organisation de demonstration creee automatiquement depuis l'entreprise.
 - Utilisateurs avec roles `owner`, `admin`, `accountant`, `viewer`.
+- Administration frontend des utilisateurs: creation, changement de role et activation/desactivation.
 - Protection serveur des principales routes d'ecriture selon les roles.
 - Exercices comptables avec creation, verrouillage et reouverture.
 - Plan comptable SYSCOHADA enrichi.
@@ -30,13 +31,13 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
 - Base de donnees: SQLite solide pour MVP local, PostgreSQL reste a brancher avant de viser une exploitation multi-clients.
-- Auth: le flux de connexion est disponible; il reste l'administration complete des utilisateurs dans l'interface.
+- Auth: le flux de connexion et l'administration des roles sont disponibles; il reste les invitations email et la reinitialisation de mot de passe.
 - Jobs: file persistante disponible, mais pas encore de worker asynchrone.
 - Exports: exports locaux disponibles, mais pas encore de generation serveur historisee.
 
 ## Reste a faire pour finir la phase 2
 
-- Ajouter l'administration des utilisateurs et roles dans l'interface.
+- Ajouter les invitations email et la reinitialisation de mot de passe.
 - Etendre la protection par organisation a toutes les donnees metier.
 - Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
 - Introduire PostgreSQL avec migrations reproductibles.

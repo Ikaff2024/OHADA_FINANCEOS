@@ -87,11 +87,20 @@ try {
     })
   });
   assert.equal(createUser.status, 201);
-  assert.equal((await createUser.json()).user.role, "accountant");
+  const createdUser = await createUser.json();
+  assert.equal(createdUser.user.role, "accountant");
+
+  const updateUser = await fetch(`http://localhost:${port}/api/users/${createdUser.user.id}`, {
+    method: "PATCH",
+    headers: authHeaders,
+    body: JSON.stringify({ name: "Comptable Demo Senior", role: "viewer", status: "active" })
+  });
+  assert.equal(updateUser.status, 200);
+  assert.equal((await updateUser.json()).user.role, "viewer");
 
   const users = await fetch(`http://localhost:${port}/api/users`, { headers: authHeaders });
   assert.equal(users.status, 200);
-  assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local"), true);
+  assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local" && user.name === "Comptable Demo Senior"), true);
 
   const createJob = await fetch(`http://localhost:${port}/api/jobs`, {
     method: "POST",

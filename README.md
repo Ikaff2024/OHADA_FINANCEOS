@@ -60,6 +60,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Authentification email/mot de passe avec sessions bearer
 - Ecran de connexion et session conservee cote navigateur
 - Utilisateurs, roles et organisation de demonstration
+- Administration des utilisateurs et roles dans l'interface
 - Protection des routes d'ecriture sensibles par role
 - File de jobs simple pour preparer imports et generations longues
 - Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
@@ -80,6 +81,7 @@ Mot de passe: admin12345
 - `GET /api/organizations`
 - `GET /api/users`
 - `POST /api/users`
+- `PATCH /api/users/:id`
 - `GET /api/jobs`
 - `POST /api/jobs`
 - `GET /api/files`
@@ -122,4 +124,4 @@ Le suivi detaille est dans `docs/phase-2-status.md`.
 
 ## Prochaine priorite
 
-Ajouter l'administration des utilisateurs dans l'interface et brancher un worker de jobs pour les imports et exports longs.
+Brancher un worker de jobs pour les imports et exports longs, puis preparer la migration PostgreSQL.

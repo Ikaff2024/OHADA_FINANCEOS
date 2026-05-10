@@ -464,6 +464,11 @@ h1 span {
   display: block;
 }
 
+.view[data-view="settings"].active {
+  display: grid;
+  gap: 16px;
+}
+
 .kpi {
   position: relative;
   min-height: 124px;
@@ -687,6 +692,30 @@ form {
 
 .form-row.single {
   grid-template-columns: 1fr;
+}
+
+.compact-field {
+  gap: 4px;
+}
+
+.compact-field input {
+  min-height: 34px;
+}
+
+.muted-text {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.user-form {
+  margin-bottom: 8px;
+}
+
+.user-form.is-disabled {
+  opacity: 0.58;
 }
 
 label {

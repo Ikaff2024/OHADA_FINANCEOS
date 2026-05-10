@@ -3,6 +3,7 @@ const state = {
   accounts: [],
   accountClasses: [],
   auxiliaryAccounts: [],
+  users: [],
   entries: [],
   periods: [],
   importTransactions: [],
@@ -95,6 +96,10 @@ const auditSearchEl = document.querySelector("#audit-search");
 const auditActionFilterEl = document.querySelector("#audit-action-filter");
 const auxiliaryForm = document.querySelector("#auxiliary-form");
 const auxiliaryMessageEl = document.querySelector("#auxiliary-message");
+const userForm = document.querySelector("#user-form");
+const userMessageEl = document.querySelector("#user-message");
+const usersTableEl = document.querySelector("#users-table");
+const usersCountEl = document.querySelector("#users-count");
 const autoBalanceEl = document.querySelector("#auto-balance");
 const balanceEntryButton = document.querySelector("#balance-entry");
 const entryBalanceStatusEl = document.querySelector("#entry-balance-status");
@@ -157,6 +162,7 @@ auditSearchEl.addEventListener("input", renderAuditEvents);
 auditActionFilterEl.addEventListener("change", renderAuditEvents);
 form.addEventListener("submit", submitEntry);
 auxiliaryForm.addEventListener("submit", submitAuxiliaryAccount);
+userForm.addEventListener("submit", submitUser);
 loginForm.addEventListener("submit", submitLogin);
 logoutButton.addEventListener("click", logout);
 document.querySelectorAll("[data-view-target]").forEach((button) => {
@@ -216,8 +222,8 @@ const viewCopy = {
   },
   settings: {
     label: "Parametres entreprise",
-    title: 'Parametres de <span>l’entreprise</span>.',
-    subtitle: "Mettez a jour la societe, la devise et les dates d'exercice utilisees dans les etats."
+    title: "Parametres de <span>l'entreprise</span>.",
+    subtitle: "Mettez a jour la societe, les exercices, les utilisateurs et les droits d'acces."
   }
 };
 
@@ -382,6 +388,10 @@ function roleLabel(role) {
   }[role] || "Utilisateur";
 }
 
+function canManageUsers() {
+  return ["owner", "admin"].includes(state.auth.user?.role);
+}
+
 function setUiTheme(theme, persist = true) {
   const selectedTheme = theme === "linear-stripe" ? "linear-stripe" : "classic";
   document.body.dataset.uiTheme = selectedTheme;
@@ -457,6 +467,7 @@ async function refresh() {
   state.lettering = lettering;
   state.periods = periods;
   state.auditEvents = auditEvents;
+  state.users = await fetchUsersForRole();
   renderReportPeriodOptions();
   ensureReportPeriodSelected();
   const reports = await fetchReportsForPeriod();
@@ -482,6 +493,16 @@ async function refresh() {
   renderLettering();
   renderAuditActionFilter();
   renderAuditEvents();
+  renderUsers();
+}
+
+async function fetchUsersForRole() {
+  if (!canManageUsers()) return [];
+  try {
+    return await fetchJson("/api/users");
+  } catch {
+    return [];
+  }
 }
 
 async function fetchReportsForPeriod() {
@@ -630,6 +651,66 @@ async function submitAuxiliaryAccount(event) {
   auxiliaryForm.reset();
   setAuxiliaryMessage("Auxiliaire cree.");
   await refresh();
+}
+
+async function submitUser(event) {
+  event.preventDefault();
+  if (!canManageUsers()) {
+    setUserMessage("Droits administrateur requis.", true);
+    return;
+  }
+
+  setUserMessage("Creation en cours...");
+  const payload = {
+    name: userForm.elements.name.value,
+    email: userForm.elements.email.value,
+    role: userForm.elements.role.value,
+    password: userForm.elements.password.value
+  };
+
+  const response = await fetch("/api/users", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setUserMessage(body.errors?.join(" ") ?? body.error ?? "Creation refusee.", true);
+    return;
+  }
+
+  userForm.reset();
+  userForm.elements.role.value = "accountant";
+  setUserMessage("Utilisateur cree.");
+  state.users = await fetchUsersForRole();
+  renderUsers();
+}
+
+async function updateUserAccess(userId) {
+  const row = usersTableEl.querySelector(`[data-user-row="${CSS.escape(userId)}"]`);
+  if (!row) return;
+  setUserMessage("Mise a jour en cours...");
+
+  const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: row.querySelector('[data-user-field="name"]').value,
+      role: row.querySelector('[data-user-field="role"]').value,
+      status: row.querySelector('[data-user-field="status"]').value
+    })
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setUserMessage(body.error ?? "Mise a jour refusee.", true);
+    return;
+  }
+
+  setUserMessage("Utilisateur mis a jour.");
+  state.users = await fetchUsersForRole();
+  renderUsers();
 }
 
 async function submitCompany(event) {
@@ -1485,6 +1566,66 @@ function filteredLetteringRows() {
   });
 }
 
+function renderUsers() {
+  const canManage = canManageUsers();
+  userForm.classList.toggle("is-disabled", !canManage);
+  [...userForm.elements].forEach((element) => {
+    element.disabled = !canManage;
+  });
+
+  if (!canManage) {
+    usersCountEl.textContent = "Acces reserve";
+    usersTableEl.innerHTML = `
+      <tr>
+        <td colspan="5">La gestion des utilisateurs est reservee aux proprietaires et administrateurs.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  usersCountEl.textContent = `${state.users.length} utilisateur${state.users.length > 1 ? "s" : ""}`;
+  usersTableEl.innerHTML = state.users.map((user) => `
+    <tr data-user-row="${escapeHtml(user.id)}">
+      <td>
+        <label class="compact-field">
+          Nom
+          <input data-user-field="name" value="${escapeHtml(user.name)}" />
+        </label>
+        <div class="muted-text">${escapeHtml(user.email)}</div>
+      </td>
+      <td>
+        <select data-user-field="role">
+          ${["owner", "admin", "accountant", "viewer"].map((role) => `
+            <option value="${role}" ${user.role === role ? "selected" : ""}>${roleLabel(role)}</option>
+          `).join("")}
+        </select>
+      </td>
+      <td>
+        <select data-user-field="status">
+          <option value="active" ${user.status === "active" ? "selected" : ""}>Actif</option>
+          <option value="disabled" ${user.status === "disabled" ? "selected" : ""}>Desactive</option>
+        </select>
+      </td>
+      <td>${formatDate(user.createdAt?.slice(0, 10) || "")}</td>
+      <td>
+        <button class="btn" type="button" data-save-user="${escapeHtml(user.id)}">Enregistrer</button>
+      </td>
+    </tr>
+  `).join("");
+
+  if (state.users.length === 0) {
+    usersTableEl.innerHTML = `
+      <tr>
+        <td colspan="5">Aucun utilisateur trouve.</td>
+      </tr>
+    `;
+  }
+
+  for (const button of usersTableEl.querySelectorAll("[data-save-user]")) {
+    button.addEventListener("click", () => updateUserAccess(button.dataset.saveUser));
+  }
+}
+
 async function applyManualLettering() {
   const lineRefs = [...document.querySelectorAll("[data-lettering-line]:checked")].map((input) => input.dataset.letteringLine);
   setLetteringMessage("Lettrage manuel en cours...");
@@ -1985,6 +2126,11 @@ function setCompanyMessage(text, isError = false) {
 function setAuxiliaryMessage(text, isError = false) {
   auxiliaryMessageEl.textContent = text;
   auxiliaryMessageEl.classList.toggle("error", isError);
+}
+
+function setUserMessage(text, isError = false) {
+  userMessageEl.textContent = text;
+  userMessageEl.classList.toggle("error", isError);
 }
 
 function setSubscriptionMessage(text, isError = false) {

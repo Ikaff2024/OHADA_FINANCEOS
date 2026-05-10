@@ -694,6 +694,62 @@
             </form>
             <div class="message" id="company-message"></div>
           </article>
+
+          <article class="panel users-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Administration</p>
+                <h2>Utilisateurs et roles</h2>
+              </div>
+              <span class="status-pill" id="users-count">0 utilisateur</span>
+            </div>
+
+            <form id="user-form" class="user-form">
+              <div class="form-row">
+                <label>
+                  Nom
+                  <input name="name" type="text" placeholder="Ex: Awa Comptable" required />
+                </label>
+                <label>
+                  Email
+                  <input name="email" type="email" placeholder="awa@entreprise.ci" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Role
+                  <select name="role">
+                    <option value="accountant">Comptable</option>
+                    <option value="admin">Administrateur</option>
+                    <option value="viewer">Lecture seule</option>
+                    <option value="owner">Proprietaire</option>
+                  </select>
+                </label>
+                <label>
+                  Mot de passe temporaire
+                  <input name="password" type="password" minlength="8" placeholder="8 caracteres minimum" required />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Creer utilisateur</button>
+              </div>
+            </form>
+            <div class="message" id="user-message"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Utilisateur</th>
+                    <th>Role</th>
+                    <th>Statut</th>
+                    <th>Creation</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="users-table"></tbody>
+              </table>
+            </div>
+          </article>
         </section>
       </main>
     </div>
