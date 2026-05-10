@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>BaobabGuard — Mockup C (Identité africaine)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Palette terre-cuite OHADA */
+    --bg: #F7F1E8;          /* sable */
+    --paper: #FDF9F2;       /* paille blanche */
+    --paper-warm: #F2E9D8;
+    --line: #E5D9C2;
+    --line-strong: #C9B894;
+    --ink: #1F1814;         /* terre brûlée foncée */
+    --ink-soft: #594936;
+    --ink-faint: #8B7559;
+    --terra: #C2532E;       /* ocre rouge sahel */
+    --terra-soft: #F0DBC8;
+    --baobab: #5C4630;      /* écorce */
+    --gold: #C99A3F;        /* doré */
+    --green: #5C7A3E;       /* feuille */
+    --green-soft: #DBE5C8;
+    --amber: #C99A3F;
+    --amber-soft: #F4E5C0;
+    --red: #A33A2A;
+    --red-soft: #F1D5CD;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Manrope', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(194, 83, 46, 0.04), transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(92, 70, 48, 0.03), transparent 40%);
+    background-attachment: fixed;
+  }
+  .display { font-family: 'DM Serif Display', serif; letter-spacing: -0.01em; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'tnum'; }
+
+  .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--paper);
+    border-right: 1px solid var(--line);
+    padding: 22px 16px 14px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .sidebar::before {
+    content: '';
+    position: absolute; left: 0; right: 0; top: 0; height: 4px;
+    background: linear-gradient(90deg, var(--terra), var(--gold), var(--green));
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    padding: 4px 6px 24px;
+  }
+  .brand-mark {
+    width: 38px; height: 38px;
+    background: var(--ink);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    color: var(--bg);
+    font-family: 'DM Serif Display', serif; font-size: 22px;
+    position: relative;
+  }
+  .brand-mark::after {
+    content: '';
+    position: absolute; inset: -3px;
+    border: 1px solid var(--terra);
+    border-radius: 50%;
+    opacity: 0.5;
+  }
+  .brand-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 19px; line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .brand-tag { font-size: 10px; color: var(--ink-faint); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; font-weight: 600; }
+
+  .firm-card {
+    margin: 0 -2px 22px;
+    padding: 14px 16px;
+    background: var(--ink);
+    color: var(--bg);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .firm-card::before {
+    content: '';
+    position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(194, 83, 46, 0.4), transparent 70%);
+  }
+  .firm-label { font-size: 10px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; }
+  .firm-name { font-family: 'DM Serif Display', serif; font-size: 17px; margin-top: 4px; }
+  .firm-meta { font-size: 11.5px; color: rgba(247, 241, 232, 0.6); margin-top: 2px; }
+
+  .nav-label {
+    font-size: 10px; color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700;
+    padding: 14px 8px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 10px; border-radius: 8px;
+    color: var(--ink-soft); cursor: pointer;
+    font-size: 13.5px; font-weight: 500;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--paper-warm); color: var(--ink); }
+  .nav-item.active {
+    background: var(--ink); color: var(--bg);
+    font-weight: 600;
+  }
+  .nav-item.active .icon { color: var(--gold); }
+  .nav-item .icon { font-size: 14px; opacity: 0.85; width: 16px; text-align: center; }
+  .nav-item .badge {
+    margin-left: auto; font-size: 10.5px;
+    background: var(--terra); color: white;
+    padding: 2px 7px; border-radius: 999px; font-weight: 700;
+  }
+  .nav-item.active .badge { background: var(--gold); color: var(--ink); }
+
+  .user-card {
+    margin-top: auto;
+    padding: 10px;
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 11px;
+  }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--terra), var(--baobab));
+    color: white;
+    display: grid; place-items: center;
+    font-family: 'DM Serif Display', serif; font-size: 14px;
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--line-strong);
+  }
+
+  /* MAIN */
+  .main { padding: 36px 48px 60px; max-width: 1400px; }
+
+  .breadcrumb {
+    font-size: 12px; color: var(--ink-faint);
+    margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600;
+  }
+  .breadcrumb span { margin: 0 8px; opacity: 0.5; }
+
+  .page-title {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 40px; margin-bottom: 8px;
+  }
+  .h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 46px; line-height: 1.05;
+    letter-spacing: -0.02em;
+    max-width: 700px;
+  }
+  .h1 .accent { color: var(--terra); font-style: italic; }
+  .h1-sub { font-size: 15px; color: var(--ink-soft); margin-top: 12px; max-width: 580px; line-height: 1.5; }
+  .h1-sub strong { color: var(--ink); font-weight: 600; }
+
+  .head-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .btn {
+    padding: 9px 16px; border-radius: 8px;
+    font-size: 13.5px; font-family: inherit; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--line-strong);
+    background: var(--paper); color: var(--ink);
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--paper-warm); }
+  .btn-primary {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  }
+  .btn-primary:hover { background: var(--baobab); border-color: var(--baobab); }
+
+  /* KPIs - éditorial */
+  .kpis {
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 0;
+    margin: 36px 0 32px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .kpi {
+    padding: 20px 24px;
+    border-right: 1px solid var(--line);
+    position: relative;
+  }
+  .kpi:last-child { border-right: none; }
+  .kpi.featured {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .kpi.featured::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--terra), var(--gold));
+  }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; color: var(--ink-faint); }
+  .kpi.featured .kpi-label { color: var(--gold); }
+  .kpi-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px; font-weight: 400; line-height: 1;
+    margin-top: 10px; letter-spacing: -0.025em;
+  }
+  .kpi-unit { font-size: 14px; color: var(--ink-faint); margin-left: 4px; font-family: 'Manrope'; font-weight: 600; }
+  .kpi.featured .kpi-unit { color: var(--gold); }
+  .kpi-delta { font-size: 12px; color: var(--ink-faint); margin-top: 8px; font-weight: 500; }
+  .kpi.featured .kpi-delta { color: rgba(247, 241, 232, 0.6); }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.warn { color: var(--terra); }
+
+  /* Banner */
+  .banner {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--terra);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 32px;
+    display: flex; align-items: center; gap: 18px;
+  }
+  .banner-icon {
+    width: 40px; height: 40px;
+    background: var(--terra-soft); color: var(--terra);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 18px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .banner-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+  .banner-text { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .banner-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* Section */
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 32px 0 18px;
+  }
+  .h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px; letter-spacing: -0.015em;
+  }
+  .h2-count { color: var(--ink-faint); font-weight: 500; margin-left: 10px; font-family: 'Manrope'; font-size: 13px; }
+  .filters {
+    display: flex; gap: 0;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px;
+  }
+  .pill {
+    font-size: 12.5px; padding: 6px 14px; border-radius: 999px;
+    color: var(--ink-soft); cursor: pointer; font-weight: 600;
+    transition: all 0.15s;
+  }
+  .pill:hover { color: var(--ink); }
+  .pill.active { background: var(--ink); color: var(--bg); }
+
+  /* Cards */
+  .grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 24px;
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+    background: var(--line);
+    transition: all 0.18s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(31, 24, 20, 0.06); border-color: var(--line-strong); }
+  .card.ok::before { background: var(--green); }
+  .card.warn::before { background: var(--gold); }
+  .card.err::before { background: var(--terra); }
+
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+  .card-id { display: flex; align-items: center; gap: 13px; }
+  .card-mark {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--paper-warm);
+    display: grid; place-items: center;
+    font-family: 'DM Serif Display', serif; font-size: 17px;
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+  }
+  .card-name { font-family: 'DM Serif Display', serif; font-size: 18px; line-height: 1.2; letter-spacing: -0.01em; }
+  .card-meta { font-size: 12px; color: var(--ink-faint); margin-top: 3px; font-weight: 500; }
+
+  .status-badge {
+    font-size: 11px; padding: 4px 11px; border-radius: 999px;
+    font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-badge.ok { background: var(--green-soft); color: var(--green); }
+  .status-badge.warn { background: var(--amber-soft); color: var(--baobab); }
+  .status-badge.err { background: var(--red-soft); color: var(--red); }
+  .status-badge.ok .dot { background: var(--green); }
+  .status-badge.warn .dot { background: var(--amber); }
+  .status-badge.err .dot { background: var(--red); }
+
+  .card-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    padding-top: 16px; border-top: 1px solid var(--line);
+  }
+  .stat-label { font-size: 10px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; }
+  .stat-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px; line-height: 1;
+    margin-top: 6px; letter-spacing: -0.02em;
+  }
+  .stat-unit { font-size: 11px; color: var(--ink-faint); margin-left: 3px; font-family: 'Manrope'; font-weight: 600; }
+
+  .card-foot {
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: var(--ink-faint);
+  }
+  .last-action em { font-style: normal; color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div>
+        <div class="brand-name">Baobab</div>
+        <div class="brand-tag">Guard</div>
+      </div>
+    </div>
+
+    <div class="firm-card">
+      <div class="firm-label">Cabinet</div>
+      <div class="firm-name">Diallo &amp; Associés</div>
+      <div class="firm-meta">12 sociétés clientes · Abidjan</div>
+    </div>
+
+    <div class="nav-label">Travail courant</div>
+    <div class="nav-item active"><span class="icon">◆</span> Tableau de bord</div>
+    <div class="nav-item"><span class="icon">◇</span> Mes clients <span class="badge">12</span></div>
+    <div class="nav-item"><span class="icon">!</span> À traiter <span class="badge">7</span></div>
+    <div class="nav-item"><span class="icon">≡</span> Clôtures du mois</div>
+
+    <div class="nav-label">Productivité</div>
+    <div class="nav-item"><span class="icon">⊟</span> Templates</div>
+    <div class="nav-item"><span class="icon">↓</span> Imports en masse</div>
+    <div class="nav-item"><span class="icon">▤</span> Rapports consolidés</div>
+
+    <div class="nav-label">Cabinet</div>
+    <div class="nav-item"><span class="icon">◐</span> Équipe</div>
+    <div class="nav-item"><span class="icon">$</span> Facturation</div>
+    <div class="nav-item"><span class="icon">⚙</span> Paramètres</div>
+
+    <div class="user-card">
+      <div class="avatar">A</div>
+      <div>
+        <div style="font-size: 13px; font-weight: 700;">Aminata Diallo</div>
+        <div style="font-size: 11px; color: var(--ink-faint); font-weight: 600;">Senior Manager</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="breadcrumb">Cabinet Diallo <span>›</span> Tableau de bord</div>
+
+    <div class="page-title">
+      <div>
+        <div class="h1 display">Bonjour, <span class="accent">Aminata</span>.</div>
+        <div class="h1-sub">12 sociétés clientes au portefeuille du cabinet. <strong>7 actions</strong> méritent votre attention ce matin, dont 3 clôtures de mars en retard.</div>
+      </div>
+      <div class="head-actions">
+        <button class="btn">↓ Exporter</button>
+        <button class="btn btn-primary">+ Nouveau client</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi featured">
+        <div class="kpi-label">Patrimoine sous gestion</div>
+        <div class="kpi-value display">12,4<span class="kpi-unit">Md XOF</span></div>
+        <div class="kpi-delta">Valeur brute · 2 847 actifs</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">VNC consolidée</div>
+        <div class="kpi-value display">7,8<span class="kpi-unit">Md</span></div>
+        <div class="kpi-delta">63 % du brut</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Actifs ce mois</div>
+        <div class="kpi-value display">+34</div>
+        <div class="kpi-delta up">↗ entrées nettes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Clôtures à faire</div>
+        <div class="kpi-value display">5</div>
+        <div class="kpi-delta warn">3 en retard</div>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="banner-icon">!</div>
+      <div>
+        <div class="banner-title display">Trois clôtures de mars en retard</div>
+        <div class="banner-text">SCB Construction, Bénin Solutions IT et Pharma Abidjan attendent la validation des dotations.</div>
+      </div>
+      <div class="banner-actions">
+        <button class="btn">Détail</button>
+        <button class="btn btn-primary">Clôturer en lot</button>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <div>
+        <span class="h2 display">Mes clients</span>
+        <span class="h2-count">12 sociétés actives</span>
+      </div>
+      <div class="filters">
+        <div class="pill active">Toutes</div>
+        <div class="pill">À jour</div>
+        <div class="pill">Action requise</div>
+        <div class="pill">En retard</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card ok">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">IB</div>
+            <div>
+              <div class="card-name">Industries du Baobab</div>
+              <div class="card-meta">SARL · Côte d'Ivoire · 3 sites</div>
+            </div>
+          </div>
+          <span class="status-badge ok"><span class="dot"></span>À jour</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">847</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">2,15<span class="stat-unit">Md</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--green);">100%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Avril 2026</em></div>
+          <div>il y a 3 jours</div>
+        </div>
+      </div>
+
+      <div class="card warn">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">SC</div>
+            <div>
+              <div class="card-name">SCB Construction</div>
+              <div class="card-meta">SA · Sénégal · BTP</div>
+            </div>
+          </div>
+          <span class="status-badge warn"><span class="dot"></span>Mars en retard</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">312</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">1,80<span class="stat-unit">Md</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--gold);">78%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Février 2026</em></div>
+          <div>il y a 38 jours</div>
+        </div>
+      </div>
+
+      <div class="card err">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">AT</div>
+            <div>
+              <div class="card-name">Atlantique Transport</div>
+              <div class="card-meta">SARL · Côte d'Ivoire · Logistique</div>
+            </div>
+          </div>
+          <span class="status-badge err"><span class="dot"></span>Écart inventaire</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">156</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">945<span class="stat-unit">M</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--gold);">92%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Avril 2026</em></div>
+          <div>il y a 4 jours</div>
+        </div>
+      </div>
+
+      <div class="card ok">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">KM</div>
+            <div>
+              <div class="card-name">Kouadio Mining</div>
+              <div class="card-meta">SA · Burkina Faso · Mines</div>
+            </div>
+          </div>
+          <span class="status-badge ok"><span class="dot"></span>À jour</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">523</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">3,41<span class="stat-unit">Md</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--green);">100%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Avril 2026</em></div>
+          <div>il y a 2 jours</div>
+        </div>
+      </div>
+
+      <div class="card warn">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">PA</div>
+            <div>
+              <div class="card-name">Pharma Abidjan</div>
+              <div class="card-meta">SARL · Côte d'Ivoire · Distribution</div>
+            </div>
+          </div>
+          <span class="status-badge warn"><span class="dot"></span>2 actifs incomplets</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">89</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">412<span class="stat-unit">M</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--gold);">65%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Mars 2026</em></div>
+          <div>il y a 22 jours</div>
+        </div>
+      </div>
+
+      <div class="card err">
+        <div class="card-head">
+          <div class="card-id">
+            <div class="card-mark">BS</div>
+            <div>
+              <div class="card-name">Bénin Solutions IT</div>
+              <div class="card-meta">SAS · Bénin · Services</div>
+            </div>
+          </div>
+          <span class="status-badge err"><span class="dot"></span>Avril en retard</span>
+        </div>
+        <div class="card-stats">
+          <div><div class="stat-label">Actifs</div><div class="stat-value display">48</div></div>
+          <div><div class="stat-label">VNC</div><div class="stat-value display">102<span class="stat-unit">M</span></div></div>
+          <div><div class="stat-label">Inventaire</div><div class="stat-value display" style="color: var(--red);">0%</div></div>
+        </div>
+        <div class="card-foot">
+          <div class="last-action">Clôture <em>Mars 2026</em></div>
+          <div>il y a 41 jours</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

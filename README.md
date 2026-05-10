@@ -1,0 +1,89 @@
+# OHADA FinanceOS MVP
+
+MVP local pour valider le coeur produit: importer ou saisir des ecritures, appliquer un plan comptable OHADA simplifie, verifier l'equilibre debit/credit et produire les premiers etats financiers.
+
+## Lancer
+
+```bash
+npm.cmd run dev
+```
+
+Puis ouvrir:
+
+```text
+http://localhost:3050
+```
+
+## Contenu du MVP
+
+- Creation et lecture d'une entreprise de demonstration
+- Plan comptable SYSCOHADA enrichi depuis les PDF de reference
+- Saisie d'ecritures comptables equilibrees
+- References obligatoires sur les ecritures
+- Validation des comptes et des montants
+- Balance generale consultable en 6 ou 8 colonnes, exportable en CSV ou XLS
+- Etats imprimables et exportables selon une periode datee
+- Bilan simplifie
+- Compte de resultat simplifie
+- API JSON locale
+- Persistance SQLite dans `data/financeos.sqlite`
+- Import CSV bancaire avec suggestions de comptes
+- Ecritures d'abonnement mensuelles avec generation en lot
+- Categorisation assistee par regles de libelles
+- Correction manuelle des comptes suggeres avant import
+- Memorisation locale des corrections de classification
+- Detection et exclusion des doublons bancaires
+- Historique des lots d'import bancaire
+- Annulation d'un lot d'import et retrait des ecritures associees
+- Journal filtrable par source et recherche texte
+- Detail d'ecriture et suppression controlee
+- Navigation par vues: Dashboard / Tresorerie, Journal, Imports, Etats financiers
+- Vue Plan comptable: classes, familles, recherche et filtrage
+- Creation de comptes auxiliaires rattaches aux comptes collectifs
+- Balance auxiliaire par tiers
+- Grand livre consultable par compte general ou auxiliaire, exportable en CSV ou XLS
+- Lettrage manuel et automatique des comptes par rapprochement debit/credit
+- Impression de la balance generale, du grand livre et de la balance auxiliaire
+- Entete imprime avec nom de la societe et exercice
+- Choix d'interface: theme classique OHADA ou theme sombre Linear Stripe
+- Totaux visibles sur les balances et le grand livre
+- Exercice comptable persiste dans SQLite
+- Verrouillage / reouverture de periode
+- Blocage des saisies, suppressions et annulations d'import sur periode verrouillee
+- Tableau de controles de cloture avant edition des etats
+
+## API
+
+- `GET /api/health`
+- `GET /api/company`
+- `GET /api/accounts`
+- `GET /api/account-classes`
+- `GET /api/auxiliary-accounts`
+- `POST /api/auxiliary-accounts`
+- `GET /api/accounting-periods`
+- `POST /api/accounting-periods/:id/lock`
+- `POST /api/accounting-periods/:id/unlock`
+- `GET /api/journal-entries`
+- `POST /api/journal-entries`
+- `GET /api/journal-entries/:id`
+- `DELETE /api/journal-entries/:id`
+- `GET /api/bank-imports/sample`
+- `POST /api/bank-imports/preview`
+- `POST /api/bank-imports/commit`
+- `GET /api/bank-imports/batches`
+- `POST /api/bank-imports/batches/:id/void`
+- `GET /api/subscriptions`
+- `POST /api/subscriptions`
+- `GET /api/lettering`
+- `POST /api/lettering/manual`
+- `POST /api/lettering/auto`
+- `GET /api/reports/trial-balance`
+- `GET /api/reports/general-ledger`
+- `GET /api/reports/auxiliary-balance`
+- `GET /api/reports/balance-sheet`
+- `GET /api/reports/income-statement`
+- `GET /api/reports/closing-controls`
+
+## Prochaine priorite
+
+Ajouter la gestion multi-exercices complete et rattacher les etats financiers a un exercice selectionne.

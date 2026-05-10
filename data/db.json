@@ -1,0 +1,517 @@
+{
+  "company": {
+    "id": "demo-company",
+    "name": "Demo PME OHADA",
+    "country": "CI",
+    "currency": "XOF",
+    "fiscalYearStart": "2026-01-01",
+    "fiscalYearEnd": "2026-12-31"
+  },
+  "journalEntries": [
+    {
+      "id": "fb015054-7a98-4f70-8baf-af0b53c024eb",
+      "date": "2026-02-28",
+      "description": "Paiement salaires equipe",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:59:37.261Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 650000
+        },
+        {
+          "accountCode": "631",
+          "label": "Charge de personnel",
+          "debit": 650000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "7d65ba88-6976-4163-a949-642ac0160625",
+      "date": "2026-02-10",
+      "description": "Achat marchandises fournisseur Kone",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:59:37.257Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 420000
+        },
+        {
+          "accountCode": "601",
+          "label": "Achat de marchandises",
+          "debit": 420000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "02d4e8ae-5916-4c0a-9a2d-e960b93e4c00",
+      "date": "2026-02-07",
+      "description": "Paiement loyer bureau Plateau",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:59:37.254Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 300000
+        },
+        {
+          "accountCode": "622",
+          "label": "Loyer ou charge locative",
+          "debit": 300000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "71248543-06cf-4f8c-8d89-0caea0e87f4b",
+      "date": "2026-02-04",
+      "description": "Virement recu client Nimba service",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:59:37.252Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 850000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Service vendu",
+          "debit": 0,
+          "credit": 850000
+        }
+      ]
+    },
+    {
+      "id": "338b9b33-779c-4b5f-8762-2a8fc39ab5eb",
+      "date": "2026-05-09",
+      "description": "Vente de services",
+      "source": "manual",
+      "createdAt": "2026-05-09T15:59:25.258Z",
+      "lines": [
+        {
+          "accountCode": "411",
+          "label": "Vente de services",
+          "debit": 250000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Vente de services",
+          "debit": 0,
+          "credit": 250000
+        }
+      ]
+    },
+    {
+      "id": "0c2cc555-d026-4e2d-8d63-cb38a3dd5aba",
+      "date": "2026-02-04",
+      "description": "Virement recu client Nimba service",
+      "source": "bank-csv",
+      "batchId": "ed0188d0-3015-4414-ae46-4c9052249c0e",
+      "bankFingerprint": "2026-02-04|virement recu client nimba service|850000.00",
+      "createdAt": "2026-05-09T15:55:08.873Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 850000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Service vendu",
+          "debit": 0,
+          "credit": 850000
+        }
+      ]
+    },
+    {
+      "id": "91ab8166-0765-4f78-af96-ab995f48e68a",
+      "date": "2026-02-07",
+      "description": "Paiement loyer bureau Plateau",
+      "source": "bank-csv",
+      "batchId": "ed0188d0-3015-4414-ae46-4c9052249c0e",
+      "bankFingerprint": "2026-02-07|paiement loyer bureau plateau|-300000.00",
+      "createdAt": "2026-05-09T15:55:08.874Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 300000
+        },
+        {
+          "accountCode": "622",
+          "label": "Loyer ou charge locative",
+          "debit": 300000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "99b10fc5-cf13-4775-bb20-de778fe7b954",
+      "date": "2026-02-10",
+      "description": "Achat marchandises fournisseur Kone",
+      "source": "bank-csv",
+      "batchId": "ed0188d0-3015-4414-ae46-4c9052249c0e",
+      "bankFingerprint": "2026-02-10|achat marchandises fournisseur kone|-420000.00",
+      "createdAt": "2026-05-09T15:55:08.874Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 420000
+        },
+        {
+          "accountCode": "601",
+          "label": "Achat de marchandises",
+          "debit": 420000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "f05d5caa-3597-4c67-9c67-f509afb5fc9b",
+      "date": "2026-02-28",
+      "description": "Paiement salaires equipe",
+      "source": "bank-csv",
+      "batchId": "ed0188d0-3015-4414-ae46-4c9052249c0e",
+      "bankFingerprint": "2026-02-28|paiement salaires equipe|-650000.00",
+      "createdAt": "2026-05-09T15:55:08.874Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 650000
+        },
+        {
+          "accountCode": "631",
+          "label": "Charge de personnel",
+          "debit": 650000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "9f25d413-240a-44f5-b565-d294827b06fa",
+      "date": "2026-02-04",
+      "description": "Virement recu client Nimba service",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:54:52.231Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 850000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Service vendu",
+          "debit": 0,
+          "credit": 850000
+        }
+      ]
+    },
+    {
+      "id": "bcfb0d32-4085-45d7-91f4-cace1dfb71f2",
+      "date": "2026-02-07",
+      "description": "Paiement loyer bureau Plateau",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:54:52.231Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 300000
+        },
+        {
+          "accountCode": "622",
+          "label": "Loyer ou charge locative",
+          "debit": 300000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "aa66be96-ca6e-425c-bfa2-88627a2529b7",
+      "date": "2026-02-10",
+      "description": "Achat marchandises fournisseur Kone",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:54:52.231Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 420000
+        },
+        {
+          "accountCode": "601",
+          "label": "Achat de marchandises",
+          "debit": 420000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "ad82e708-1564-462e-91e8-dacc1c6f8342",
+      "date": "2026-02-28",
+      "description": "Paiement salaires equipe",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:54:52.231Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 650000
+        },
+        {
+          "accountCode": "631",
+          "label": "Charge de personnel",
+          "debit": 650000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "62277939-01e7-462a-99da-9510d9c556d0",
+      "date": "2026-02-28",
+      "description": "Paiement salaires equipe",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:34:54.208Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 650000
+        },
+        {
+          "accountCode": "631",
+          "label": "Charge de personnel",
+          "debit": 650000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "8f31fd97-13d2-4503-9ad9-97b67a95aab5",
+      "date": "2026-02-10",
+      "description": "Achat marchandises fournisseur Kone",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:34:54.205Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 420000
+        },
+        {
+          "accountCode": "601",
+          "label": "Achat de marchandises",
+          "debit": 420000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "d6bd8652-b569-4225-98c6-59860f14ccb0",
+      "date": "2026-02-07",
+      "description": "Paiement loyer bureau Plateau",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:34:54.200Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 0,
+          "credit": 300000
+        },
+        {
+          "accountCode": "622",
+          "label": "Loyer ou charge locative",
+          "debit": 300000,
+          "credit": 0
+        }
+      ]
+    },
+    {
+      "id": "c3be6072-645b-434d-a7fd-5cd055dfbf59",
+      "date": "2026-02-04",
+      "description": "Virement recu client Nimba service",
+      "source": "bank-csv",
+      "createdAt": "2026-05-09T15:34:54.198Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Mouvement bancaire",
+          "debit": 850000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Service vendu",
+          "debit": 0,
+          "credit": 850000
+        }
+      ]
+    },
+    {
+      "id": "50c53fe2-ee10-4e0d-9f9b-c931280dcedb",
+      "date": "2026-05-09",
+      "description": "Vente de marchandises client beta",
+      "source": "manual",
+      "createdAt": "2026-05-09T15:22:51.119Z",
+      "lines": [
+        {
+          "accountCode": "411",
+          "label": "Vente de marchandises client beta",
+          "debit": 1000000,
+          "credit": 0
+        },
+        {
+          "accountCode": "701",
+          "label": "Vente de marchandises client beta",
+          "debit": 0,
+          "credit": 1000000
+        }
+      ]
+    },
+    {
+      "id": "2a720dc4-4a20-4625-b3b8-744e6b6f08b3",
+      "date": "2026-05-09",
+      "description": "Vente de marchandises client beta",
+      "source": "manual",
+      "createdAt": "2026-05-09T15:20:01.537Z",
+      "lines": [
+        {
+          "accountCode": "411",
+          "label": "Vente de marchandises client beta",
+          "debit": 375000,
+          "credit": 0
+        },
+        {
+          "accountCode": "701",
+          "label": "Vente de marchandises client beta",
+          "debit": 0,
+          "credit": 375000
+        }
+      ]
+    },
+    {
+      "id": "entry-001",
+      "date": "2026-01-05",
+      "description": "Apport initial en capital",
+      "source": "seed",
+      "createdAt": "2026-05-09T15:14:25.084Z",
+      "lines": [
+        {
+          "accountCode": "512",
+          "label": "Depot bancaire",
+          "debit": 5000000,
+          "credit": 0
+        },
+        {
+          "accountCode": "101",
+          "label": "Capital social",
+          "debit": 0,
+          "credit": 5000000
+        }
+      ]
+    },
+    {
+      "id": "entry-002",
+      "date": "2026-01-12",
+      "description": "Vente de services client Alpha",
+      "source": "seed",
+      "createdAt": "2026-05-09T15:14:25.084Z",
+      "lines": [
+        {
+          "accountCode": "411",
+          "label": "Facture client Alpha",
+          "debit": 1250000,
+          "credit": 0
+        },
+        {
+          "accountCode": "706",
+          "label": "Services vendus",
+          "debit": 0,
+          "credit": 1250000
+        }
+      ]
+    },
+    {
+      "id": "entry-003",
+      "date": "2026-01-20",
+      "description": "Paiement loyer bureau",
+      "source": "seed",
+      "createdAt": "2026-05-09T15:14:25.084Z",
+      "lines": [
+        {
+          "accountCode": "622",
+          "label": "Loyer bureau",
+          "debit": 300000,
+          "credit": 0
+        },
+        {
+          "accountCode": "512",
+          "label": "Paiement banque",
+          "debit": 0,
+          "credit": 300000
+        }
+      ]
+    }
+  ],
+  "classificationCorrections": [],
+  "bankImportBatches": [
+    {
+      "id": "ed0188d0-3015-4414-ae46-4c9052249c0e",
+      "createdAt": "2026-05-09T15:55:08.876Z",
+      "source": "bank-csv",
+      "status": "posted",
+      "transactionCount": 4,
+      "importedCount": 4,
+      "duplicateCount": 0,
+      "learnedCount": 0,
+      "entryIds": [
+        "0c2cc555-d026-4e2d-8d63-cb38a3dd5aba",
+        "91ab8166-0765-4f78-af96-ab995f48e68a",
+        "99b10fc5-cf13-4775-bb20-de778fe7b954",
+        "f05d5caa-3597-4c67-9c67-f509afb5fc9b"
+      ]
+    },
+    {
+      "id": "af6bf3d7-8486-463a-9afc-429ebece3873",
+      "createdAt": "2026-05-09T15:54:52.233Z",
+      "source": "bank-csv",
+      "status": "posted",
+      "transactionCount": 4,
+      "importedCount": 4,
+      "duplicateCount": 0,
+      "learnedCount": 0,
+      "entryIds": [
+        "9f25d413-240a-44f5-b565-d294827b06fa",
+        "bcfb0d32-4085-45d7-91f4-cace1dfb71f2",
+        "aa66be96-ca6e-425c-bfa2-88627a2529b7",
+        "ad82e708-1564-462e-91e8-dacc1c6f8342"
+      ]
+    }
+  ]
+}

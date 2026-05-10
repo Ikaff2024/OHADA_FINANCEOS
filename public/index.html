@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OHADA FinanceOS MVP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">O</div>
+          <div>
+            <div class="brand-name">OHADA</div>
+            <div class="brand-tag">FinanceOS</div>
+          </div>
+        </div>
+
+        <div class="firm-card">
+          <div class="firm-label">Entreprise pilote</div>
+          <div class="firm-name" id="company-name">Demo PME OHADA</div>
+          <div class="firm-meta" id="company">Chargement...</div>
+        </div>
+
+        <label class="theme-switcher">
+          <span>Interface</span>
+          <select id="ui-theme">
+            <option value="classic">Classique OHADA</option>
+            <option value="linear-stripe">Linear Stripe</option>
+          </select>
+        </label>
+
+        <div class="nav-label">Travail courant</div>
+        <button class="nav-item active" type="button" data-view-target="dashboard"><span class="nav-icon">*</span> Dashboard / Tresorerie</button>
+        <button class="nav-item" type="button" data-view-target="journal"><span class="nav-icon">o</span> Journal <span class="badge" id="entry-count">0</span></button>
+        <button class="nav-item" type="button" data-view-target="ledger"><span class="nav-icon">|</span> Grand livre</button>
+        <button class="nav-item" type="button" data-view-target="lettering"><span class="nav-icon">x</span> Lettrage</button>
+        <button class="nav-item" type="button" data-view-target="chart"><span class="nav-icon">#</span> Plan comptable</button>
+        <button class="nav-item" type="button" data-view-target="auxiliaries"><span class="nav-icon">+</span> Auxiliaires</button>
+        <button class="nav-item" type="button" data-view-target="reports"><span class="nav-icon">=</span> Etats financiers</button>
+
+        <div class="nav-label">Production</div>
+        <button class="nav-item" type="button" data-view-target="imports"><span class="nav-icon">v</span> Imports bancaires</button>
+        <button class="nav-item" type="button" data-view-target="subscriptions"><span class="nav-icon">a</span> Abonnements</button>
+
+        <div class="user-card">
+          <div class="avatar">AI</div>
+          <div>
+            <div class="user-name">Assistant comptable</div>
+            <div class="user-role">Mode MVP local</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="breadcrumb">OHADA FinanceOS <span>/</span> <span id="view-label">Dashboard</span></div>
+
+        <header class="page-title">
+          <div>
+            <h1 id="view-title">Comptabilite <span>OHADA</span>, claire et actionnable.</h1>
+            <p id="view-subtitle">
+              Pilotez les saisies, imports, controles et premiers etats financiers depuis un espace structure.
+            </p>
+          </div>
+          <div class="head-actions" id="view-actions">
+            <button class="btn" type="button" data-view-target="imports">Importer CSV</button>
+            <button class="btn btn-primary" type="button" data-view-target="journal">Voir journal</button>
+          </div>
+        </header>
+
+        <section class="view active" data-view="dashboard">
+          <section class="kpis">
+            <article class="kpi featured">
+              <div class="kpi-label">Actif total</div>
+              <div class="kpi-value" id="assets">-</div>
+              <div class="kpi-delta">Selon bilan simplifie</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Resultat</div>
+              <div class="kpi-value" id="net-income">-</div>
+              <div class="kpi-delta">Produits moins charges</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Controle bilan</div>
+              <div class="kpi-value" id="difference">-</div>
+              <div class="kpi-delta">Ecart actif - passif</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Ecritures</div>
+              <div class="kpi-value" id="entry-total">0</div>
+              <div class="kpi-delta">Journal local</div>
+            </article>
+          </section>
+
+          <section class="work-grid dashboard-grid">
+            <article class="panel entry-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Saisie</p>
+                  <h2>Nouvelle ecriture</h2>
+                </div>
+                <span class="status-pill">Validation auto</span>
+              </div>
+
+              <form id="entry-form">
+                <div class="form-row">
+                  <label>
+                    Date
+                    <input name="date" type="date" required />
+                  </label>
+                  <label>
+                    Reference
+                    <input name="reference" type="text" placeholder="Ex: FAC-2026-001" required />
+                  </label>
+                </div>
+
+                <div class="form-row single">
+                  <label>
+                    Libelle
+                    <input name="description" type="text" placeholder="Ex: Vente services client" required />
+                  </label>
+                </div>
+
+                <div class="entry-balance-tools">
+                  <label class="switch-line">
+                    <input id="auto-balance" type="checkbox" checked />
+                    <span>Equilibrage auto</span>
+                  </label>
+                  <div class="balance-status" id="entry-balance-status">Debit 0 FCFA / Credit 0 FCFA</div>
+                  <button type="button" class="btn" id="balance-entry">Equilibrer</button>
+                </div>
+
+                <div class="lines" id="lines"></div>
+
+                <div class="form-actions">
+                  <button type="button" class="btn" id="add-line">Ajouter ligne</button>
+                  <button type="button" class="btn" id="demo-sale">Modele vente</button>
+                  <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+              </form>
+
+              <div class="message" id="message"></div>
+            </article>
+
+            <article class="panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Synthese</p>
+                  <h2>Dernieres ecritures</h2>
+                </div>
+                <button class="btn" type="button" data-view-target="journal">Ouvrir</button>
+              </div>
+              <div class="entries compact" id="dashboard-entries"></div>
+            </article>
+          </section>
+
+          <section class="work-grid controls-grid">
+            <article class="panel period-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Cloture</p>
+                  <h2>Controle de periode</h2>
+                </div>
+                <span class="status-pill" id="period-status">Ouvert</span>
+              </div>
+              <div class="periods" id="periods"></div>
+            </article>
+
+            <article class="panel closing-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Controles</p>
+                  <h2>Tableau de cloture</h2>
+                </div>
+                <span class="status-pill" id="closing-status">En controle</span>
+              </div>
+              <div class="closing-summary" id="closing-summary"></div>
+              <div class="closing-controls" id="closing-controls"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" data-view="journal">
+          <article class="panel journal-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Journal</p>
+                <h2>Revue des ecritures</h2>
+              </div>
+            </div>
+            <div class="journal-tools">
+              <input id="journal-search" type="search" placeholder="Rechercher libelle, compte..." />
+              <select id="journal-source">
+                <option value="all">Toutes sources</option>
+                <option value="manual">Saisie manuelle</option>
+                <option value="subscription">Abonnement</option>
+                <option value="bank-csv">Import bancaire</option>
+                <option value="seed">Demo</option>
+              </select>
+            </div>
+            <div class="journal-layout">
+              <div class="entries" id="entries"></div>
+              <div class="journal-detail" id="journal-detail"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="ledger">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Grand livre</p>
+                <h2>Detail des mouvements</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="print-ledger">Imprimer</button>
+                <button class="btn btn-primary" type="button" id="export-ledger">Exporter</button>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="ledger-search" type="search" placeholder="Rechercher reference, compte, auxiliaire..." />
+              <label class="period-field">
+                Du
+                <input type="date" data-report-period="from" />
+              </label>
+              <label class="period-field">
+                Au
+                <input type="date" data-report-period="to" />
+              </label>
+              <select id="ledger-account-filter">
+                <option value="all">Tous comptes</option>
+              </select>
+              <select id="ledger-auxiliary-filter">
+                <option value="all">Tous auxiliaires</option>
+              </select>
+              <select id="ledger-party-filter">
+                <option value="all">Tous tiers</option>
+                <option value="clients">Clients</option>
+                <option value="suppliers">Fournisseurs</option>
+              </select>
+              <select id="ledger-export-format">
+                <option value="xls">Format XLS</option>
+                <option value="csv">Format CSV</option>
+              </select>
+            </div>
+            <div class="totals-strip" id="ledger-totals"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Reference</th>
+                    <th>Compte</th>
+                    <th>Auxiliaire</th>
+                    <th>Libelle</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
+                  </tr>
+                </thead>
+                <tbody id="general-ledger"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="lettering">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Lettrage</p>
+                <h2>Rapprochement des comptes</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="manual-lettering">Lettrer selection</button>
+                <button class="btn btn-primary" type="button" id="auto-lettering">Lettrage auto</button>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="lettering-search" type="search" placeholder="Rechercher reference, compte, libelle..." />
+              <select id="lettering-account-filter">
+                <option value="all">Tous comptes</option>
+              </select>
+              <select id="lettering-status-filter">
+                <option value="open">Non lettrees</option>
+                <option value="all">Toutes lignes</option>
+                <option value="lettered">Lettree</option>
+              </select>
+            </div>
+            <div class="totals-strip" id="lettering-totals"></div>
+            <div class="message" id="lettering-message"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Date</th>
+                    <th>Reference</th>
+                    <th>Compte</th>
+                    <th>Auxiliaire</th>
+                    <th>Libelle</th>
+                    <th>Debit</th>
+                    <th>Credit</th>
+                    <th>Lettrage</th>
+                  </tr>
+                </thead>
+                <tbody id="lettering-rows"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="imports">
+          <section class="work-grid imports-grid">
+            <article class="panel import-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Import bancaire</p>
+                  <h2>CSV assiste</h2>
+                </div>
+                <span class="status-pill terra" id="import-status">En attente</span>
+              </div>
+
+              <div class="import-tools">
+                <button class="btn" type="button" id="load-sample">Charger exemple</button>
+                <button class="btn" type="button" id="preview-import">Analyser</button>
+                <button class="btn btn-primary" type="button" id="commit-import" disabled>Importer</button>
+              </div>
+
+              <label>
+                CSV bancaire
+                <textarea id="bank-csv" spellcheck="false" placeholder="date,description,amount"></textarea>
+              </label>
+
+              <div class="import-preview" id="import-preview"></div>
+            </article>
+
+            <article class="panel batches-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Controle</p>
+                  <h2>Historique des imports</h2>
+                </div>
+                <span class="status-pill" id="batch-count">0 lot</span>
+              </div>
+              <div class="batches" id="batches"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" data-view="subscriptions">
+          <section class="work-grid imports-grid">
+            <article class="panel entry-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Abonnements</p>
+                  <h2>Ecriture mensuelle</h2>
+                </div>
+                <span class="status-pill">Generation auto</span>
+              </div>
+
+              <form id="subscription-form">
+                <div class="form-row">
+                  <label>
+                    Nom
+                    <input name="name" type="text" placeholder="Ex: Loyer mensuel" required />
+                  </label>
+                  <label>
+                    Jour du mois
+                    <input name="dayOfMonth" type="number" min="1" max="28" value="5" required />
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>
+                    Debut
+                    <input name="startDate" type="date" required />
+                  </label>
+                  <label>
+                    Fin
+                    <input name="endDate" type="date" required />
+                  </label>
+                </div>
+                <div class="form-row single">
+                  <label>
+                    Libelle
+                    <input name="description" type="text" placeholder="Ex: Abonnement loyer bureau" required />
+                  </label>
+                </div>
+
+                <div class="subscription-lines">
+                  <label>
+                    Compte debit
+                    <input name="debitAccount" list="account-options" placeholder="Ex: 6222" required />
+                  </label>
+                  <label>
+                    Libelle debit
+                    <input name="debitLabel" type="text" required />
+                  </label>
+                  <label>
+                    Montant debit
+                    <input name="debitAmount" type="number" min="0" step="0.01" required />
+                  </label>
+                  <label>
+                    Compte credit
+                    <input name="creditAccount" list="account-options" placeholder="Ex: 4011" required />
+                  </label>
+                  <label>
+                    Libelle credit
+                    <input name="creditLabel" type="text" required />
+                  </label>
+                  <label>
+                    Montant credit
+                    <input name="creditAmount" type="number" min="0" step="0.01" required />
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">Generer les ecritures</button>
+                </div>
+              </form>
+              <div class="message" id="subscription-message"></div>
+            </article>
+
+            <article class="panel batches-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Historique</p>
+                  <h2>Lots d'abonnement</h2>
+                </div>
+                <span class="status-pill" id="subscription-count">0 lot</span>
+              </div>
+              <div class="batches" id="subscription-batches"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" data-view="chart">
+          <article class="panel chart-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">SYSCOHADA</p>
+                <h2>Plan comptable enrichi</h2>
+              </div>
+              <span class="status-pill" id="account-total">0 compte a 4 chiffres</span>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="account-search" type="search" placeholder="Rechercher code, libelle, classe..." />
+              <select id="account-class-filter">
+                <option value="all">Toutes classes</option>
+              </select>
+            </div>
+            <div class="account-classes" id="account-classes"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Compte 4 chiffres</th>
+                    <th>Libelle</th>
+                    <th>Classe</th>
+                    <th>Famille</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody id="account-catalog"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="auxiliaries">
+          <section class="work-grid imports-grid">
+            <article class="panel chart-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Tiers</p>
+                  <h2>Nouveau compte auxiliaire</h2>
+                </div>
+                <span class="status-pill" id="auxiliary-count">0 auxiliaire</span>
+              </div>
+              <form id="auxiliary-form">
+                <div class="form-row">
+                  <label>
+                    Code auxiliaire
+                    <input name="code" type="text" placeholder="Ex: C-SOGEA" required />
+                  </label>
+                  <label>
+                    Libelle
+                    <input name="label" type="text" placeholder="Ex: Client SOGEA" required />
+                  </label>
+                </div>
+                <label>
+                  Compte collectif
+                  <input name="accountCode" list="account-options" placeholder="Ex: 4111 - Clients" required />
+                </label>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">Creer auxiliaire</button>
+                </div>
+              </form>
+              <div class="message" id="auxiliary-message"></div>
+            </article>
+
+            <article class="panel balance-panel">
+              <div class="section-title">
+                <div>
+                <p class="eyebrow">Balance</p>
+                <h2>Balance auxiliaire</h2>
+              </div>
+              <button class="btn" type="button" id="print-auxiliary-balance">Imprimer</button>
+            </div>
+              <div class="journal-tools chart-tools">
+                <input id="auxiliary-balance-search" type="search" placeholder="Rechercher auxiliaire, compte..." />
+                <label class="period-field">
+                  Du
+                  <input type="date" data-report-period="from" />
+                </label>
+                <label class="period-field">
+                  Au
+                  <input type="date" data-report-period="to" />
+                </label>
+                <select id="auxiliary-balance-party-filter">
+                  <option value="all">Tous tiers</option>
+                  <option value="clients">Clients</option>
+                  <option value="suppliers">Fournisseurs</option>
+                </select>
+              </div>
+              <div class="totals-strip" id="auxiliary-balance-totals"></div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Auxiliaire</th>
+                      <th>Compte</th>
+                      <th>Debit</th>
+                      <th>Credit</th>
+                      <th>Solde</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auxiliary-balance"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" data-view="reports">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Etats</p>
+                <h2>Balance generale</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="print-balance">Imprimer</button>
+                <button class="btn btn-primary" type="button" id="export-balance">Exporter</button>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="balance-search" type="search" placeholder="Rechercher compte, libelle, classe..." />
+              <label class="period-field">
+                Du
+                <input type="date" data-report-period="from" />
+              </label>
+              <label class="period-field">
+                Au
+                <input type="date" data-report-period="to" />
+              </label>
+              <select id="balance-format">
+                <option value="6">Balance 6 colonnes</option>
+                <option value="8">Balance 8 colonnes</option>
+              </select>
+              <select id="balance-export-format">
+                <option value="xls">Format XLS</option>
+                <option value="csv">Format CSV</option>
+              </select>
+            </div>
+            <div class="totals-strip" id="trial-balance-totals"></div>
+            <div class="table-wrap">
+              <table>
+                <thead id="trial-balance-head"></thead>
+                <tbody id="trial-balance"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel closing-panel reports-closing">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Cloture</p>
+                <h2>Controles avant edition</h2>
+              </div>
+              <span class="status-pill" id="reports-closing-status">En controle</span>
+            </div>
+            <div class="closing-controls" id="reports-closing-controls"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <template id="line-template">
+      <div class="line-row">
+        <label>
+          Compte
+          <input class="account" list="account-options" placeholder="Ex: 4111" required />
+        </label>
+        <label>
+          Libelle ligne
+          <input class="line-label" type="text" placeholder="Libelle du compte" required />
+        </label>
+        <label>
+          Auxiliaire
+          <input class="auxiliary" list="auxiliary-options" placeholder="Optionnel" />
+        </label>
+        <label>
+          Debit
+          <input class="debit" type="number" min="0" step="0.01" value="0" />
+        </label>
+        <label>
+          Credit
+          <input class="credit" type="number" min="0" step="0.01" value="0" />
+        </label>
+        <button type="button" class="remove-line" title="Supprimer la ligne">x</button>
+      </div>
+    </template>
+
+    <datalist id="account-options"></datalist>
+    <datalist id="auxiliary-options"></datalist>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

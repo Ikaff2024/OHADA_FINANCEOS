@@ -1,0 +1,16 @@
+{
+  "name": "ohada-financeos-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP local pour OHADA FinanceOS: comptabilite SYSCOHADA, ecritures, balance, bilan et compte de resultat.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --no-warnings src/server.js",
+    "start": "node --no-warnings src/server.js",
+    "check": "node src/check.js",
+    "check:e2e": "node src/check-server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
