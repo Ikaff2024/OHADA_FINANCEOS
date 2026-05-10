@@ -57,10 +57,31 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Blocage des saisies, suppressions et annulations d'import sur periode verrouillee
 - Tableau de controles de cloture avant edition des etats
 - Journal d'audit des actions sensibles
+- Authentification email/mot de passe avec sessions bearer
+- Utilisateurs, roles et organisation de demonstration
+- File de jobs simple pour preparer imports et generations longues
+- Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
+
+## Acces de demonstration
+
+```text
+Email: admin@demo.ohada
+Mot de passe: admin12345
+```
 
 ## API
 
 - `GET /api/health`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/organizations`
+- `GET /api/users`
+- `POST /api/users`
+- `GET /api/jobs`
+- `POST /api/jobs`
+- `GET /api/files`
+- `POST /api/files/text`
 - `GET /api/company`
 - `PUT /api/company`
 - `GET /api/accounts`
@@ -93,6 +114,10 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - `GET /api/reports/income-statement`
 - `GET /api/reports/closing-controls`
 
+## Phase 2
+
+Le suivi detaille est dans `docs/phase-2-status.md`.
+
 ## Prochaine priorite
 
-Ajouter la gestion multi-exercices complete et rattacher les etats financiers a un exercice selectionne.
+Brancher l'interface sur l'authentification et appliquer les roles aux actions sensibles existantes.

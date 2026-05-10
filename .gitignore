@@ -6,3 +6,5 @@ npm-debug.log*
 *.log
 data/*.sqlite
 data/*.sqlite-*
+storage/uploads/*
+!storage/uploads/.gitkeep

@@ -23,6 +23,7 @@ import { accountClasses, accounts } from "./ohadaChart.js";
 import {
   addAccountingPeriod,
   addAuxiliaryAccount,
+  addUser,
   addBankImportBatch,
   addClassificationCorrections,
   addJournalEntries,
@@ -31,8 +32,17 @@ import {
   addManualLettering,
   addSubscriptionBatch,
   deleteJournalEntry,
+  enqueueJob,
+  loginUser,
+  logoutUser,
+  readAuthContext,
   readDb,
+  readJobs,
   readLetteringState,
+  readOrganizations,
+  readStoredFiles,
+  readUsers,
+  saveTextFile,
   setAccountingPeriodStatus,
   updateCompany,
   voidBankImportBatch
@@ -68,6 +78,76 @@ async function handleApi(request, response, url) {
 
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, { ok: true, service: "ohada-financeos-mvp" });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/login") {
+    const result = await loginUser(await readJson(request));
+    sendJson(response, result.ok ? 200 : result.status ?? 401, result);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/logout") {
+    const token = bearerToken(request);
+    sendJson(response, 200, await logoutUser(token));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/auth/me") {
+    const auth = await readAuthContext(bearerToken(request));
+    sendJson(response, auth ? 200 : 401, auth ?? { error: "Non authentifie." });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/organizations") {
+    const auth = await requireAuth(request, response);
+    if (!auth) return;
+    sendJson(response, 200, await readOrganizations());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/users") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
+    sendJson(response, 200, await readUsers());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/users") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
+    const result = await addUser(await readJson(request));
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/jobs") {
+    const auth = await requireAuth(request, response);
+    if (!auth) return;
+    sendJson(response, 200, await readJobs());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/jobs") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
+    const result = await enqueueJob(await readJson(request));
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/files") {
+    const auth = await requireAuth(request, response);
+    if (!auth) return;
+    sendJson(response, 200, await readStoredFiles());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/files/text") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
+    const result = await saveTextFile(await readJson(request));
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
 
@@ -360,6 +440,31 @@ async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+}
+
+function bearerToken(request) {
+  const authorization = request.headers.authorization || "";
+  const [scheme, token] = authorization.split(/\s+/);
+  return scheme?.toLowerCase() === "bearer" ? token ?? "" : "";
+}
+
+async function requireAuth(request, response) {
+  const auth = await readAuthContext(bearerToken(request));
+  if (!auth) {
+    sendJson(response, 401, { error: "Authentification requise." });
+    return null;
+  }
+  return auth;
+}
+
+async function requireRole(request, response, roles) {
+  const auth = await requireAuth(request, response);
+  if (!auth) return null;
+  if (!roles.includes(auth.user.role)) {
+    sendJson(response, 403, { error: "Droits insuffisants." });
+    return null;
+  }
+  return auth;
 }
 
 function contentType(filePath) {

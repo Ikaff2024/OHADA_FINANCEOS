@@ -1,14 +1,17 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { normalizeJournalEntry } from "./accounting.js";
 import { accountByCode } from "./ohadaChart.js";
+import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const defaultSqlitePath = join(rootDir, "data", "financeos.sqlite");
 const legacyJsonPath = join(rootDir, "data", "db.json");
+const defaultStorageDir = join(rootDir, "storage", "uploads");
+const storageDir = process.env.OHADA_STORAGE_DIR || defaultStorageDir;
 const dbPath = process.env.OHADA_DB_PATH || defaultSqlitePath;
 
 const seed = {
@@ -67,9 +70,167 @@ const seed = {
 
 let database;
 
+const defaultAdminEmail = "admin@demo.ohada";
+const defaultAdminPassword = "admin12345";
+
 export async function readDb() {
   const db = await getDatabase();
   return readSnapshot(db);
+}
+
+export async function loginUser(input) {
+  const db = await getDatabase();
+  const email = normalizeEmail(input.email);
+  const password = String(input.password || "");
+  const user = readUserByEmail(db, email);
+
+  if (!user || user.status !== "active" || !verifyPassword(password, user.passwordHash)) {
+    return { ok: false, status: 401, error: "Identifiants invalides." };
+  }
+
+  const token = createSessionToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 12).toISOString();
+  db.prepare(`
+    INSERT INTO auth_sessions (token_hash, user_id, created_at, expires_at)
+    VALUES (?, ?, ?, ?)
+  `).run(hashToken(token), user.id, now.toISOString(), expiresAt);
+
+  return {
+    ok: true,
+    token,
+    user: publicUser(user),
+    organization: readOrganization(db, user.organizationId),
+    expiresAt
+  };
+}
+
+export async function logoutUser(token) {
+  const db = await getDatabase();
+  db.prepare("DELETE FROM auth_sessions WHERE token_hash = ?").run(hashToken(token));
+  return { ok: true };
+}
+
+export async function readAuthContext(token) {
+  if (!token) return null;
+  const db = await getDatabase();
+  const row = db.prepare(`
+    SELECT users.*
+    FROM auth_sessions
+    JOIN users ON users.id = auth_sessions.user_id
+    WHERE auth_sessions.token_hash = ? AND auth_sessions.expires_at > ?
+    LIMIT 1
+  `).get(hashToken(token), new Date().toISOString());
+  if (!row) return null;
+
+  const user = mapUser(row);
+  return {
+    user: publicUser(user),
+    organization: readOrganization(db, user.organizationId)
+  };
+}
+
+export async function readOrganizations() {
+  const db = await getDatabase();
+  return readAllOrganizations(db);
+}
+
+export async function readUsers() {
+  const db = await getDatabase();
+  return readAllUsers(db).map(publicUser);
+}
+
+export async function addUser(input) {
+  const db = await getDatabase();
+  const organizationId = String(input.organizationId || seed.company.id).trim();
+  const organization = readOrganization(db, organizationId);
+  if (!organization) return { ok: false, status: 422, error: "Organisation introuvable." };
+
+  const user = {
+    id: crypto.randomUUID(),
+    email: normalizeEmail(input.email),
+    name: String(input.name || "").trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : "viewer",
+    organizationId,
+    passwordHash: hashPassword(input.password || ""),
+    status: "active",
+    createdAt: new Date().toISOString()
+  };
+
+  const errors = validateUser(user, input.password);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  try {
+    insertUser(db, user);
+  } catch {
+    return { ok: false, status: 409, error: "Cet email existe deja." };
+  }
+
+  return { ok: true, user: publicUser(user) };
+}
+
+export async function enqueueJob(input) {
+  const db = await getDatabase();
+  const job = {
+    id: crypto.randomUUID(),
+    type: String(input.type || "").trim(),
+    status: "queued",
+    payload: input.payload ?? {},
+    result: null,
+    error: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!job.type) return { ok: false, status: 422, error: "Le type de job est obligatoire." };
+  insertJob(db, job);
+  return { ok: true, job };
+}
+
+export async function readJobs() {
+  const db = await getDatabase();
+  return db.prepare(`
+    SELECT *
+    FROM jobs
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).all().map(mapJob);
+}
+
+export async function saveTextFile(input) {
+  const db = await getDatabase();
+  const name = String(input.name || "").trim();
+  const content = String(input.content ?? "");
+  const mimeType = String(input.mimeType || "text/plain").trim();
+  if (!name) return { ok: false, status: 422, error: "Le nom du fichier est obligatoire." };
+
+  await mkdir(storageDir, { recursive: true });
+  const id = crypto.randomUUID();
+  const safeName = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  const absolutePath = join(storageDir, `${id}-${safeName}`);
+  const relativePath = relative(rootDir, absolutePath);
+  await writeFile(absolutePath, content, "utf8");
+  const fileStats = await stat(absolutePath);
+  const file = {
+    id,
+    name,
+    path: relativePath,
+    mimeType,
+    size: fileStats.size,
+    createdAt: new Date().toISOString()
+  };
+  insertStoredFile(db, file);
+  return { ok: true, file };
+}
+
+export async function readStoredFiles() {
+  const db = await getDatabase();
+  return db.prepare(`
+    SELECT *
+    FROM stored_files
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).all().map(mapStoredFile);
 }
 
 export async function updateCompany(input) {
@@ -470,6 +631,7 @@ async function getDatabase() {
   database.exec("PRAGMA foreign_keys = ON");
   createSchema(database);
   await seedIfEmpty(database);
+  ensureDefaultOrganizationAndUser(database);
   ensureCompanyPeriod(database);
   ensureDefaultAuxiliaries(database);
   return database;
@@ -484,6 +646,32 @@ function createSchema(db) {
       currency TEXT NOT NULL,
       fiscal_year_start TEXT NOT NULL,
       fiscal_year_end TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      country TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'accountant', 'viewer')),
+      status TEXT NOT NULL CHECK(status IN ('active', 'disabled')),
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS journal_entries (
@@ -583,6 +771,30 @@ function createSchema(db) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'done', 'failed')),
+      payload_json TEXT NOT NULL,
+      result_json TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS stored_files (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_created_at ON journal_entries(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_batch_id ON journal_entries(batch_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_bank_fingerprint ON journal_entries(bank_fingerprint);
@@ -592,6 +804,8 @@ function createSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_lettering_groups_account_code ON lettering_groups(account_code);
     CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
+    CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_stored_files_created_at ON stored_files(created_at DESC);
   `);
   addColumnIfMissing(db, "journal_entries", "reference", "TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing(db, "journal_lines", "auxiliary_code", "TEXT");
@@ -627,6 +841,10 @@ async function readLegacyJson() {
 function readSnapshot(db) {
   return {
     company: readCompany(db),
+    organizations: readAllOrganizations(db),
+    users: readAllUsers(db).map(publicUser),
+    jobs: db.prepare("SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100").all().map(mapJob),
+    storedFiles: db.prepare("SELECT * FROM stored_files ORDER BY created_at DESC LIMIT 100").all().map(mapStoredFile),
     accountingPeriods: readPeriods(db),
     auxiliaryAccounts: readAuxiliaryAccounts(db),
     classificationCorrections: readCorrections(db),
@@ -673,6 +891,60 @@ function readCompany(db) {
     fiscalYearStart: row.fiscal_year_start,
     fiscalYearEnd: row.fiscal_year_end
   };
+}
+
+function ensureDefaultOrganizationAndUser(db) {
+  const company = readCompany(db);
+  const organizationCount = Number(db.prepare("SELECT COUNT(*) AS count FROM organizations").get().count);
+  if (organizationCount === 0) {
+    insertOrganization(db, {
+      id: company.id,
+      name: company.name,
+      country: company.country,
+      currency: company.currency,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  const userCount = Number(db.prepare("SELECT COUNT(*) AS count FROM users").get().count);
+  if (userCount === 0) {
+    insertUser(db, {
+      id: crypto.randomUUID(),
+      organizationId: company.id,
+      email: defaultAdminEmail,
+      name: "Administrateur Demo",
+      passwordHash: hashPassword(defaultAdminPassword),
+      role: "owner",
+      status: "active",
+      createdAt: new Date().toISOString()
+    });
+  }
+}
+
+function readAllOrganizations(db) {
+  return db.prepare(`
+    SELECT *
+    FROM organizations
+    ORDER BY created_at ASC
+  `).all().map(mapOrganization);
+}
+
+function readOrganization(db, organizationId) {
+  const row = db.prepare("SELECT * FROM organizations WHERE id = ?").get(organizationId);
+  return row ? mapOrganization(row) : null;
+}
+
+function readAllUsers(db) {
+  return db.prepare(`
+    SELECT *
+    FROM users
+    ORDER BY created_at ASC
+  `).all().map(mapUser);
+}
+
+function readUserByEmail(db, email) {
+  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  return row ? mapUser(row) : null;
 }
 
 function readPeriods(db) {
@@ -781,6 +1053,18 @@ function validatePeriod(db, period) {
   }
 
   return errors;
+}
+
+function validateUser(user, password) {
+  const errors = [];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) errors.push("Email invalide.");
+  if (user.name.length < 2) errors.push("Le nom utilisateur est obligatoire.");
+  if (String(password || "").length < 8) errors.push("Le mot de passe doit contenir au moins 8 caracteres.");
+  return errors;
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
 }
 
 function nextPeriodRange(period) {
@@ -1028,6 +1312,37 @@ function insertCompany(db, company) {
   );
 }
 
+function insertOrganization(db, organization) {
+  db.prepare(`
+    INSERT OR REPLACE INTO organizations
+    (id, name, country, currency, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    organization.id,
+    organization.name,
+    organization.country,
+    organization.currency,
+    organization.createdAt ?? new Date().toISOString()
+  );
+}
+
+function insertUser(db, user) {
+  db.prepare(`
+    INSERT INTO users
+    (id, organization_id, email, name, password_hash, role, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    user.id,
+    user.organizationId,
+    user.email,
+    user.name,
+    user.passwordHash,
+    user.role,
+    user.status,
+    user.createdAt ?? new Date().toISOString()
+  );
+}
+
 function insertPeriod(db, period) {
   db.prepare(`
     INSERT OR REPLACE INTO accounting_periods
@@ -1042,6 +1357,33 @@ function insertPeriod(db, period) {
     period.lockedAt ?? null,
     period.updatedAt ?? new Date().toISOString()
   );
+}
+
+function insertJob(db, job) {
+  db.prepare(`
+    INSERT INTO jobs
+    (id, type, status, payload_json, result_json, error, created_at, updated_at, started_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    job.id,
+    job.type,
+    job.status,
+    JSON.stringify(job.payload ?? {}),
+    job.result ? JSON.stringify(job.result) : null,
+    job.error ?? null,
+    job.createdAt,
+    job.updatedAt,
+    job.startedAt ?? null,
+    job.finishedAt ?? null
+  );
+}
+
+function insertStoredFile(db, file) {
+  db.prepare(`
+    INSERT INTO stored_files
+    (id, name, path, mime_type, size, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(file.id, file.name, file.path, file.mimeType, file.size, file.createdAt);
 }
 
 function insertEntry(db, entry) {
@@ -1197,6 +1539,55 @@ function mapBatch(row) {
     entryIds: JSON.parse(row.entry_ids_json || "[]"),
     voidedAt: row.voided_at ?? undefined,
     updatedAt: row.updated_at ?? undefined
+  };
+}
+
+function mapOrganization(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    country: row.country,
+    currency: row.currency,
+    createdAt: row.created_at
+  };
+}
+
+function mapUser(row) {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    email: row.email,
+    name: row.name,
+    passwordHash: row.password_hash,
+    role: row.role,
+    status: row.status,
+    createdAt: row.created_at
+  };
+}
+
+function mapJob(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    status: row.status,
+    payload: JSON.parse(row.payload_json || "{}"),
+    result: row.result_json ? JSON.parse(row.result_json) : null,
+    error: row.error ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    startedAt: row.started_at ?? undefined,
+    finishedAt: row.finished_at ?? undefined
+  };
+}
+
+function mapStoredFile(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    path: row.path,
+    mimeType: row.mime_type,
+    size: row.size,
+    createdAt: row.created_at
   };
 }
 

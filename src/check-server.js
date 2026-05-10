@@ -5,8 +5,14 @@ import { join } from "node:path";
 
 const port = 3060;
 const testDbPath = join("data", `test-db-${Date.now()}.sqlite`);
+const testStoragePath = join("data", `test-storage-${Date.now()}`);
 const server = spawn(process.execPath, ["src/server.js"], {
-  env: { ...process.env, PORT: String(port), OHADA_DB_PATH: testDbPath },
+  env: {
+    ...process.env,
+    PORT: String(port),
+    OHADA_DB_PATH: testDbPath,
+    OHADA_STORAGE_DIR: testStoragePath
+  },
   stdio: ["ignore", "pipe", "pipe"]
 });
 
@@ -23,6 +29,72 @@ try {
 
   const health = await fetchJson(`http://localhost:${port}/api/health`);
   assert.equal(health.ok, true);
+
+  const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
+  assert.equal(anonymousMe.status, 401);
+
+  const login = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "admin@demo.ohada", password: "admin12345" })
+  });
+  assert.equal(login.status, 200);
+  const loginBody = await login.json();
+  assert.equal(typeof loginBody.token, "string");
+  assert.equal(loginBody.user.role, "owner");
+  const authHeaders = {
+    "content-type": "application/json",
+    authorization: `Bearer ${loginBody.token}`
+  };
+
+  const me = await fetch(`http://localhost:${port}/api/auth/me`, { headers: authHeaders });
+  assert.equal(me.status, 200);
+  assert.equal((await me.json()).user.email, "admin@demo.ohada");
+
+  const organizations = await fetch(`http://localhost:${port}/api/organizations`, { headers: authHeaders });
+  assert.equal(organizations.status, 200);
+  assert.equal((await organizations.json()).length >= 1, true);
+
+  const createUser = await fetch(`http://localhost:${port}/api/users`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      email: "comptable.demo@ohada.local",
+      name: "Comptable Demo",
+      role: "accountant",
+      password: "demo12345"
+    })
+  });
+  assert.equal(createUser.status, 201);
+  assert.equal((await createUser.json()).user.role, "accountant");
+
+  const users = await fetch(`http://localhost:${port}/api/users`, { headers: authHeaders });
+  assert.equal(users.status, 200);
+  assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local"), true);
+
+  const createJob = await fetch(`http://localhost:${port}/api/jobs`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ type: "bank-import-preview", payload: { source: "check-server" } })
+  });
+  assert.equal(createJob.status, 201);
+  assert.equal((await createJob.json()).job.status, "queued");
+
+  const jobs = await fetch(`http://localhost:${port}/api/jobs`, { headers: authHeaders });
+  assert.equal(jobs.status, 200);
+  assert.equal((await jobs.json()).some((job) => job.type === "bank-import-preview"), true);
+
+  const createFile = await fetch(`http://localhost:${port}/api/files/text`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ name: "phase2-test.txt", content: "verification phase 2", mimeType: "text/plain" })
+  });
+  assert.equal(createFile.status, 201);
+  assert.equal((await createFile.json()).file.name, "phase2-test.txt");
+
+  const files = await fetch(`http://localhost:${port}/api/files`, { headers: authHeaders });
+  assert.equal(files.status, 200);
+  assert.equal((await files.json()).some((file) => file.name === "phase2-test.txt"), true);
 
   const html = await fetch(`http://localhost:${port}/`);
   assert.equal(html.status, 200);
@@ -315,11 +387,20 @@ try {
   const missing = await fetch(`http://localhost:${port}/api/journal-entries/${manualBody.id}`);
   assert.equal(missing.status, 404);
 
+  const logout = await fetch(`http://localhost:${port}/api/auth/logout`, {
+    method: "POST",
+    headers: authHeaders
+  });
+  assert.equal(logout.status, 200);
+  const expiredMe = await fetch(`http://localhost:${port}/api/auth/me`, { headers: authHeaders });
+  assert.equal(expiredMe.status, 401);
+
   console.log("Checks serveur OK");
 } finally {
   server.kill();
   await new Promise((resolve) => server.once("exit", resolve));
   await rm(testDbPath, { force: true });
+  await rm(testStoragePath, { recursive: true, force: true });
 }
 
 async function waitForServer(targetPort) {
