@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 
 CREATE TABLE IF NOT EXISTS companies (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   name TEXT NOT NULL,
   country TEXT NOT NULL,
   currency TEXT NOT NULL,
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS companies (
 
 CREATE TABLE IF NOT EXISTS accounting_periods (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   name TEXT NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
@@ -49,6 +51,7 @@ CREATE TABLE IF NOT EXISTS accounting_periods (
 
 CREATE TABLE IF NOT EXISTS auxiliary_accounts (
   code TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   label TEXT NOT NULL,
   account_code TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL
@@ -56,6 +59,7 @@ CREATE TABLE IF NOT EXISTS auxiliary_accounts (
 
 CREATE TABLE IF NOT EXISTS journal_entries (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   date DATE NOT NULL,
   reference TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL,
@@ -77,6 +81,7 @@ CREATE TABLE IF NOT EXISTS journal_lines (
 );
 
 CREATE TABLE IF NOT EXISTS classification_corrections (
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   match_text TEXT NOT NULL,
   description TEXT NOT NULL,
   direction TEXT NOT NULL,
@@ -85,11 +90,12 @@ CREATE TABLE IF NOT EXISTS classification_corrections (
   reason TEXT NOT NULL,
   confidence NUMERIC(6, 4) NOT NULL,
   learned_at TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (direction, match_text, account_code)
+  PRIMARY KEY (organization_id, direction, match_text, account_code)
 );
 
 CREATE TABLE IF NOT EXISTS bank_import_batches (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   created_at TIMESTAMPTZ NOT NULL,
   source TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -104,6 +110,7 @@ CREATE TABLE IF NOT EXISTS bank_import_batches (
 
 CREATE TABLE IF NOT EXISTS subscription_batches (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   start_date DATE NOT NULL,
@@ -116,6 +123,7 @@ CREATE TABLE IF NOT EXISTS subscription_batches (
 
 CREATE TABLE IF NOT EXISTS lettering_groups (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   code TEXT NOT NULL,
   account_code TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('manual', 'automatic')),
@@ -125,6 +133,7 @@ CREATE TABLE IF NOT EXISTS lettering_groups (
 
 CREATE TABLE IF NOT EXISTS audit_events (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   actor TEXT NOT NULL,
   action TEXT NOT NULL,
   entity_type TEXT NOT NULL,
@@ -136,6 +145,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
 
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   type TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed')),
   payload_json JSONB NOT NULL,
@@ -149,6 +159,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE TABLE IF NOT EXISTS stored_files (
   id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id),
   name TEXT NOT NULL,
   path TEXT NOT NULL,
   mime_type TEXT NOT NULL,
@@ -159,14 +170,17 @@ CREATE TABLE IF NOT EXISTS stored_files (
 CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_created_at ON journal_entries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_organization_id ON journal_entries(organization_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_batch_id ON journal_entries(batch_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_bank_fingerprint ON journal_entries(bank_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_reference ON journal_entries(reference);
 CREATE INDEX IF NOT EXISTS idx_journal_lines_auxiliary_code ON journal_lines(auxiliary_code);
+CREATE INDEX IF NOT EXISTS idx_auxiliary_accounts_organization_id ON auxiliary_accounts(organization_id);
 CREATE INDEX IF NOT EXISTS idx_bank_import_batches_created_at ON bank_import_batches(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_subscription_batches_created_at ON subscription_batches(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lettering_groups_account_code ON lettering_groups(account_code);
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_organization_id ON jobs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_stored_files_created_at ON stored_files(created_at DESC);

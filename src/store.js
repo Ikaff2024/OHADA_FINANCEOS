@@ -10,6 +10,7 @@ import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword
 const legacyJsonPath = join(rootDir, "data", "db.json");
 const storageDir = config.storageDir;
 const dbPath = config.sqlitePath;
+const defaultOrganizationId = "demo-company";
 
 const seed = {
   company: {
@@ -67,9 +68,9 @@ const seed = {
 
 let database;
 
-export async function readDb() {
+export async function readDb(organizationId = defaultOrganizationId) {
   const db = await getDatabase();
-  return readSnapshot(db);
+  return readSnapshot(db, organizationId);
 }
 
 export async function loginUser(input) {
@@ -725,6 +726,7 @@ function createSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS companies (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       name TEXT NOT NULL,
       country TEXT NOT NULL,
       currency TEXT NOT NULL,
@@ -760,6 +762,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS journal_entries (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       date TEXT NOT NULL,
       reference TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL,
@@ -782,6 +785,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS auxiliary_accounts (
       code TEXT PRIMARY KEY,
+      organization_id TEXT,
       label TEXT NOT NULL,
       account_code TEXT NOT NULL,
       created_at TEXT NOT NULL
@@ -789,6 +793,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS bank_import_batches (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       created_at TEXT NOT NULL,
       source TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -803,6 +808,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS subscription_batches (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       name TEXT NOT NULL,
       description TEXT NOT NULL,
       start_date TEXT NOT NULL,
@@ -815,6 +821,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS lettering_groups (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       code TEXT NOT NULL UNIQUE,
       account_code TEXT NOT NULL,
       line_refs_json TEXT NOT NULL,
@@ -823,6 +830,7 @@ function createSchema(db) {
     );
 
     CREATE TABLE IF NOT EXISTS classification_corrections (
+      organization_id TEXT,
       match_text TEXT NOT NULL,
       description TEXT NOT NULL,
       direction TEXT NOT NULL,
@@ -836,6 +844,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS accounting_periods (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       name TEXT NOT NULL,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
@@ -846,6 +855,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       actor TEXT NOT NULL,
       action TEXT NOT NULL,
       entity_type TEXT NOT NULL,
@@ -857,6 +867,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       type TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'done', 'failed')),
       payload_json TEXT NOT NULL,
@@ -870,6 +881,7 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS stored_files (
       id TEXT PRIMARY KEY,
+      organization_id TEXT,
       name TEXT NOT NULL,
       path TEXT NOT NULL,
       mime_type TEXT NOT NULL,
@@ -892,11 +904,25 @@ function createSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_stored_files_created_at ON stored_files(created_at DESC);
   `);
   addColumnIfMissing(db, "journal_entries", "reference", "TEXT NOT NULL DEFAULT ''");
+  addOrganizationColumnIfMissing(db, "companies");
+  addOrganizationColumnIfMissing(db, "journal_entries");
+  addOrganizationColumnIfMissing(db, "auxiliary_accounts");
+  addOrganizationColumnIfMissing(db, "bank_import_batches");
+  addOrganizationColumnIfMissing(db, "subscription_batches");
+  addOrganizationColumnIfMissing(db, "lettering_groups");
+  addOrganizationColumnIfMissing(db, "classification_corrections");
+  addOrganizationColumnIfMissing(db, "accounting_periods");
+  addOrganizationColumnIfMissing(db, "audit_events");
+  addOrganizationColumnIfMissing(db, "jobs");
+  addOrganizationColumnIfMissing(db, "stored_files");
   addColumnIfMissing(db, "journal_lines", "auxiliary_code", "TEXT");
   migrateLegacyAccountCodes(db);
   backfillEntryReferences(db);
   db.exec("CREATE INDEX IF NOT EXISTS idx_journal_lines_auxiliary_code ON journal_lines(auxiliary_code)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_journal_entries_reference ON journal_entries(reference)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_journal_entries_organization_id ON journal_entries(organization_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_auxiliary_accounts_organization_id ON auxiliary_accounts(organization_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_jobs_organization_id ON jobs(organization_id)");
 }
 
 async function seedIfEmpty(db) {
@@ -922,21 +948,21 @@ async function readLegacyJson() {
   }
 }
 
-function readSnapshot(db) {
+function readSnapshot(db, organizationId = defaultOrganizationId) {
   return {
-    company: readCompany(db),
+    company: readCompany(db, organizationId),
     organizations: readAllOrganizations(db),
     users: readAllUsers(db).map(publicUser),
-    jobs: db.prepare("SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100").all().map(mapJob),
-    storedFiles: db.prepare("SELECT * FROM stored_files ORDER BY created_at DESC LIMIT 100").all().map(mapStoredFile),
-    accountingPeriods: readPeriods(db),
-    auxiliaryAccounts: readAuxiliaryAccounts(db),
-    classificationCorrections: readCorrections(db),
-    bankImportBatches: readBatches(db),
-    subscriptionBatches: readSubscriptionBatches(db),
-    letteringGroups: readLetteringGroups(db),
-    auditEvents: readAuditEvents(db),
-    journalEntries: readEntries(db)
+    jobs: db.prepare("SELECT * FROM jobs WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapJob),
+    storedFiles: db.prepare("SELECT * FROM stored_files WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapStoredFile),
+    accountingPeriods: readPeriods(db, organizationId),
+    auxiliaryAccounts: readAuxiliaryAccounts(db, organizationId),
+    classificationCorrections: readCorrections(db, organizationId),
+    bankImportBatches: readBatches(db, organizationId),
+    subscriptionBatches: readSubscriptionBatches(db, organizationId),
+    letteringGroups: readLetteringGroups(db, organizationId),
+    auditEvents: readAuditEvents(db, organizationId),
+    journalEntries: readEntries(db, organizationId)
   };
 }
 
@@ -965,10 +991,12 @@ function withTransaction(db, callback) {
   }
 }
 
-function readCompany(db) {
-  const row = db.prepare("SELECT * FROM companies LIMIT 1").get();
+function readCompany(db, organizationId = defaultOrganizationId) {
+  const row = db.prepare("SELECT * FROM companies WHERE organization_id = ? LIMIT 1").get(organizationId)
+    ?? db.prepare("SELECT * FROM companies LIMIT 1").get();
   return {
     id: row.id,
+    organizationId: row.organization_id ?? row.id,
     name: row.name,
     country: row.country,
     currency: row.currency,
@@ -1044,11 +1072,12 @@ function readOwnerCount(db, organizationId) {
   `).get(organizationId).count);
 }
 
-function readPeriods(db) {
+function readPeriods(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM accounting_periods
+    WHERE organization_id = ?
     ORDER BY start_date DESC
-  `).all().map(mapPeriod);
+  `).all(organizationId).map(mapPeriod);
 }
 
 function readPeriod(db, periodId) {
@@ -1214,11 +1243,13 @@ function findLockedPeriodForDate(db, date) {
   `).all(date).map(mapPeriod)[0] ?? null;
 }
 
-function readCorrections(db) {
+function readCorrections(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM classification_corrections
+    WHERE organization_id = ?
     ORDER BY learned_at DESC
-  `).all().map((row) => ({
+  `).all(organizationId).map((row) => ({
+    organizationId: row.organization_id ?? defaultOrganizationId,
     matchText: row.match_text,
     description: row.description,
     direction: row.direction,
@@ -1230,13 +1261,15 @@ function readCorrections(db) {
   }));
 }
 
-function readAuxiliaryAccounts(db) {
+function readAuxiliaryAccounts(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT *
     FROM auxiliary_accounts
+    WHERE organization_id = ?
     ORDER BY account_code ASC, code ASC
-  `).all().map((row) => ({
+  `).all(organizationId).map((row) => ({
     code: row.code,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     label: row.label,
     accountCode: row.account_code,
     accountLabel: accountLabel(row.account_code),
@@ -1244,11 +1277,12 @@ function readAuxiliaryAccounts(db) {
   }));
 }
 
-function readBatches(db) {
+function readBatches(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM bank_import_batches
+    WHERE organization_id = ?
     ORDER BY created_at DESC
-  `).all().map(mapBatch);
+  `).all(organizationId).map(mapBatch);
 }
 
 function readBatch(db, batchId) {
@@ -1256,13 +1290,15 @@ function readBatch(db, batchId) {
   return row ? mapBatch(row) : null;
 }
 
-function readSubscriptionBatches(db) {
+function readSubscriptionBatches(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT *
     FROM subscription_batches
+    WHERE organization_id = ?
     ORDER BY created_at DESC
-  `).all().map((row) => ({
+  `).all(organizationId).map((row) => ({
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     name: row.name,
     description: row.description,
     startDate: row.start_date,
@@ -1274,21 +1310,23 @@ function readSubscriptionBatches(db) {
   }));
 }
 
-function readLetteringGroups(db) {
+function readLetteringGroups(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT *
     FROM lettering_groups
+    WHERE organization_id = ?
     ORDER BY created_at DESC
-  `).all().map(mapLetteringGroup);
+  `).all(organizationId).map(mapLetteringGroup);
 }
 
-function readAuditEvents(db) {
+function readAuditEvents(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT *
     FROM audit_events
+    WHERE organization_id = ?
     ORDER BY created_at DESC
     LIMIT 250
-  `).all().map((row) => ({
+  `).all(organizationId).map((row) => ({
     id: row.id,
     actor: row.actor,
     action: row.action,
@@ -1300,9 +1338,9 @@ function readAuditEvents(db) {
   }));
 }
 
-function readLetteringRows(db) {
+function readLetteringRows(db, organizationId = defaultOrganizationId) {
   const letteringByLineRef = new Map();
-  for (const group of readLetteringGroups(db)) {
+  for (const group of readLetteringGroups(db, organizationId)) {
     for (const ref of group.lineRefs) {
       letteringByLineRef.set(ref, group);
     }
@@ -1320,13 +1358,15 @@ function readLetteringRows(db) {
     FROM journal_lines
     JOIN journal_entries ON journal_entries.id = journal_lines.entry_id
     LEFT JOIN auxiliary_accounts ON auxiliary_accounts.code = journal_lines.auxiliary_code
+    WHERE journal_entries.organization_id = ?
     ORDER BY journal_entries.date ASC, journal_entries.reference ASC, journal_lines.line_index ASC
-  `).all().map((row) => {
+  `).all(organizationId).map((row) => {
     const lineRef = `${row.entry_id}:${Number(row.line_index) + 1}`;
     const group = letteringByLineRef.get(lineRef);
     return {
       lineRef,
       entryId: row.entry_id,
+      organizationId: row.organization_id ?? defaultOrganizationId,
       lineIndex: Number(row.line_index) + 1,
       date: row.date,
       reference: row.reference || fallbackReference(row),
@@ -1356,11 +1396,12 @@ function buildLetteringState(db, accountCode = "") {
   };
 }
 
-function readEntries(db) {
+function readEntries(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM journal_entries
+    WHERE organization_id = ?
     ORDER BY created_at DESC
-  `).all().map((row) => readEntryFromRow(db, row));
+  `).all(organizationId).map((row) => readEntryFromRow(db, row));
 }
 
 function readEntry(db, entryId) {
@@ -1377,6 +1418,7 @@ function readEntryFromRow(db, row) {
 
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     date: row.date,
     reference: row.reference || fallbackReference(row),
     description: row.description,
@@ -1397,10 +1439,11 @@ function readEntryFromRow(db, row) {
 function insertCompany(db, company) {
   db.prepare(`
     INSERT OR REPLACE INTO companies
-    (id, name, country, currency, fiscal_year_start, fiscal_year_end)
-    VALUES (?, ?, ?, ?, ?, ?)
+    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     company.id,
+    company.organizationId ?? company.id ?? defaultOrganizationId,
     company.name,
     company.country,
     company.currency,
@@ -1443,10 +1486,11 @@ function insertUser(db, user) {
 function insertPeriod(db, period) {
   db.prepare(`
     INSERT OR REPLACE INTO accounting_periods
-    (id, name, start_date, end_date, status, locked_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, name, start_date, end_date, status, locked_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     period.id,
+    period.organizationId ?? defaultOrganizationId,
     period.name,
     period.startDate,
     period.endDate,
@@ -1459,10 +1503,11 @@ function insertPeriod(db, period) {
 function insertJob(db, job) {
   db.prepare(`
     INSERT INTO jobs
-    (id, type, status, payload_json, result_json, error, created_at, updated_at, started_at, finished_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, type, status, payload_json, result_json, error, created_at, updated_at, started_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     job.id,
+    job.organizationId ?? defaultOrganizationId,
     job.type,
     job.status,
     JSON.stringify(job.payload ?? {}),
@@ -1478,18 +1523,19 @@ function insertJob(db, job) {
 function insertStoredFile(db, file) {
   db.prepare(`
     INSERT INTO stored_files
-    (id, name, path, mime_type, size, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(file.id, file.name, file.path, file.mimeType, file.size, file.createdAt);
+    (id, organization_id, name, path, mime_type, size, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(file.id, file.organizationId ?? defaultOrganizationId, file.name, file.path, file.mimeType, file.size, file.createdAt);
 }
 
 function insertEntry(db, entry) {
   db.prepare(`
     INSERT OR REPLACE INTO journal_entries
-    (id, date, reference, description, source, batch_id, bank_fingerprint, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, date, reference, description, source, batch_id, bank_fingerprint, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     entry.id,
+    entry.organizationId ?? defaultOrganizationId,
     entry.date,
     entry.reference ?? fallbackReference(entry),
     entry.description,
@@ -1513,10 +1559,11 @@ function insertEntry(db, entry) {
 function insertAuxiliaryAccount(db, auxiliary) {
   db.prepare(`
     INSERT OR REPLACE INTO auxiliary_accounts
-    (code, label, account_code, created_at)
-    VALUES (?, ?, ?, ?)
+    (code, organization_id, label, account_code, created_at)
+    VALUES (?, ?, ?, ?, ?)
   `).run(
     auxiliary.code,
+    auxiliary.organizationId ?? defaultOrganizationId,
     auxiliary.label,
     auxiliary.accountCode,
     auxiliary.createdAt ?? new Date().toISOString()
@@ -1526,10 +1573,11 @@ function insertAuxiliaryAccount(db, auxiliary) {
 function insertBatch(db, batch) {
   db.prepare(`
     INSERT OR REPLACE INTO bank_import_batches
-    (id, created_at, source, status, transaction_count, imported_count, duplicate_count, learned_count, entry_ids_json, voided_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, created_at, source, status, transaction_count, imported_count, duplicate_count, learned_count, entry_ids_json, voided_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     batch.id,
+    batch.organizationId ?? defaultOrganizationId,
     batch.createdAt,
     batch.source,
     batch.status,
@@ -1546,10 +1594,11 @@ function insertBatch(db, batch) {
 function insertSubscriptionBatch(db, batch) {
   db.prepare(`
     INSERT OR REPLACE INTO subscription_batches
-    (id, name, description, start_date, end_date, frequency, entry_count, entry_ids_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, name, description, start_date, end_date, frequency, entry_count, entry_ids_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     batch.id,
+    batch.organizationId ?? defaultOrganizationId,
     batch.name,
     batch.description,
     batch.startDate,
@@ -1564,10 +1613,11 @@ function insertSubscriptionBatch(db, batch) {
 function insertLetteringGroup(db, group) {
   db.prepare(`
     INSERT OR REPLACE INTO lettering_groups
-    (id, code, account_code, line_refs_json, mode, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    (id, organization_id, code, account_code, line_refs_json, mode, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     group.id,
+    group.organizationId ?? defaultOrganizationId,
     group.code,
     group.accountCode,
     JSON.stringify(group.lineRefs ?? []),
@@ -1579,10 +1629,11 @@ function insertLetteringGroup(db, group) {
 function insertAuditEvent(db, event) {
   db.prepare(`
     INSERT INTO audit_events
-    (id, actor, action, entity_type, entity_id, summary, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     event.id ?? crypto.randomUUID(),
+    event.organizationId ?? defaultOrganizationId,
     event.actor ?? "system",
     event.action,
     event.entityType,
@@ -1609,9 +1660,10 @@ function createLetteringGroup(db, accountCode, lineRefs, mode) {
 function insertCorrection(db, correction) {
   db.prepare(`
     INSERT OR REPLACE INTO classification_corrections
-    (match_text, description, direction, account_code, counterparty_account_code, reason, confidence, learned_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (organization_id, match_text, description, direction, account_code, counterparty_account_code, reason, confidence, learned_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    correction.organizationId ?? defaultOrganizationId,
     correction.matchText,
     correction.description,
     correction.direction,
@@ -1626,6 +1678,7 @@ function insertCorrection(db, correction) {
 function mapBatch(row) {
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     createdAt: row.created_at,
     source: row.source,
     status: row.status,
@@ -1665,6 +1718,7 @@ function mapUser(row) {
 function mapJob(row) {
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     type: row.type,
     status: row.status,
     payload: JSON.parse(row.payload_json || "{}"),
@@ -1680,6 +1734,7 @@ function mapJob(row) {
 function mapStoredFile(row) {
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     name: row.name,
     path: row.path,
     mimeType: row.mime_type,
@@ -1691,6 +1746,7 @@ function mapStoredFile(row) {
 function mapPeriod(row) {
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     name: row.name,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -1703,6 +1759,7 @@ function mapPeriod(row) {
 function mapLetteringGroup(row) {
   return {
     id: row.id,
+    organizationId: row.organization_id ?? defaultOrganizationId,
     code: row.code,
     accountCode: row.account_code,
     accountLabel: accountLabel(row.account_code),
@@ -1766,6 +1823,11 @@ function roundMoney(value) {
 function addColumnIfMissing(db, table, column, definition) {
   const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
   if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+function addOrganizationColumnIfMissing(db, table) {
+  addColumnIfMissing(db, table, "organization_id", `TEXT NOT NULL DEFAULT '${defaultOrganizationId}'`);
+  db.prepare(`UPDATE ${table} SET organization_id = ? WHERE organization_id IS NULL OR organization_id = ''`).run(defaultOrganizationId);
 }
 
 function backfillEntryReferences(db) {
