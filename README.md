@@ -15,6 +15,7 @@ http://localhost:3050
 ```
 
 Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
+La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.example` liste les variables attendues.
 
 ## Contenu du MVP
 
@@ -66,6 +67,8 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - File de jobs simple pour preparer imports et generations longues
 - Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
 - Worker local pour generer des exports financiers serveur et les historiser
+- Configuration centralisee par variables d'environnement
+- Schema PostgreSQL cible dans `db/postgres/schema.sql`
 
 ## Acces de demonstration
 
@@ -128,4 +131,4 @@ Le suivi detaille est dans `docs/phase-2-status.md`.
 
 ## Prochaine priorite
 
-Preparer la migration PostgreSQL et isoler les donnees par organisation sur les modules metier.
+Brancher l'adapter PostgreSQL runtime et isoler les donnees par organisation sur les modules metier.

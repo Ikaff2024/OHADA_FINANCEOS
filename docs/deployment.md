@@ -1,0 +1,35 @@
+# Deploiement MVP
+
+Ce document fixe le contrat de configuration pour sortir du mode local sans changer les habitudes de developpement.
+
+## Variables
+
+Copier `.env.example` vers `.env` en local ou configurer les memes variables chez l'hebergeur.
+
+| Variable | Usage |
+| --- | --- |
+| `PORT` | Port HTTP du serveur |
+| `OHADA_DB_PATH` | Chemin SQLite du MVP local |
+| `OHADA_STORAGE_DIR` | Dossier de stockage local des exports et fichiers |
+| `OHADA_DEFAULT_ADMIN_EMAIL` | Email du premier administrateur cree au demarrage |
+| `OHADA_DEFAULT_ADMIN_PASSWORD` | Mot de passe initial du premier administrateur |
+| `OHADA_SESSION_TTL_HOURS` | Duree de validite des sessions bearer |
+| `OHADA_JOB_WORKER_INTERVAL_MS` | Frequence de traitement de la file de jobs |
+| `DATABASE_URL` | URL PostgreSQL cible pour le deploiement production |
+
+## Chemin recommande
+
+1. Garder SQLite pour les demos locales et les tests rapides.
+2. Brancher l'adapter PostgreSQL sur `DATABASE_URL`.
+3. Rejouer le schema cible `db/postgres/schema.sql`.
+4. Migrer les donnees SQLite vers PostgreSQL avec un script dedie.
+5. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
+6. Remplacer ensuite le stockage local par un service S3-compatible.
+
+## Points d'attention production
+
+- Changer `OHADA_DEFAULT_ADMIN_PASSWORD` avant tout deploiement partage.
+- Monter `OHADA_STORAGE_DIR` sur un volume persistant.
+- Sauvegarder la base quotidiennement.
+- Garder `DATABASE_URL` hors Git.
+- Utiliser HTTPS devant le serveur applicatif.

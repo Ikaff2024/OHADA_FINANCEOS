@@ -1,18 +1,15 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { normalizeJournalEntry } from "./accounting.js";
 import { accountByCode } from "./ohadaChart.js";
+import { config, rootDir } from "./config.js";
 import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
 
-const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
-const defaultSqlitePath = join(rootDir, "data", "financeos.sqlite");
 const legacyJsonPath = join(rootDir, "data", "db.json");
-const defaultStorageDir = join(rootDir, "storage", "uploads");
-const storageDir = process.env.OHADA_STORAGE_DIR || defaultStorageDir;
-const dbPath = process.env.OHADA_DB_PATH || defaultSqlitePath;
+const storageDir = config.storageDir;
+const dbPath = config.sqlitePath;
 
 const seed = {
   company: {
@@ -70,9 +67,6 @@ const seed = {
 
 let database;
 
-const defaultAdminEmail = "admin@demo.ohada";
-const defaultAdminPassword = "admin12345";
-
 export async function readDb() {
   const db = await getDatabase();
   return readSnapshot(db);
@@ -90,7 +84,7 @@ export async function loginUser(input) {
 
   const token = createSessionToken();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 12).toISOString();
+  const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * config.sessionTtlHours).toISOString();
   db.prepare(`
     INSERT INTO auth_sessions (token_hash, user_id, created_at, expires_at)
     VALUES (?, ?, ?, ?)
@@ -1001,9 +995,9 @@ function ensureDefaultOrganizationAndUser(db) {
     insertUser(db, {
       id: crypto.randomUUID(),
       organizationId: company.id,
-      email: defaultAdminEmail,
+      email: config.defaultAdminEmail,
       name: "Administrateur Demo",
-      passwordHash: hashPassword(defaultAdminPassword),
+      passwordHash: hashPassword(config.defaultAdminPassword),
       role: "owner",
       status: "active",
       createdAt: new Date().toISOString()

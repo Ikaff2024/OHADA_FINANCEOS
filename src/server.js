@@ -1,7 +1,6 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   buildAuxiliaryBalance,
   buildBalanceSheet,
@@ -52,11 +51,11 @@ import {
   updateCompany,
   voidBankImportBatch
 } from "./store.js";
+import { config, publicConfig, rootDir } from "./config.js";
 import { buildSubscriptionEntries } from "./subscriptions.js";
 
-const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const publicDir = join(rootDir, "public");
-const port = Number(process.env.PORT || 3050);
+const port = config.port;
 
 const server = createServer(async (request, response) => {
   try {
@@ -80,13 +79,13 @@ server.listen(port, () => {
 
 setInterval(() => {
   processNextJob().catch((error) => console.error("Erreur worker jobs", error));
-}, 1500);
+}, config.jobWorkerIntervalMs);
 
 async function handleApi(request, response, url) {
   const db = await readDb();
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, service: "ohada-financeos-mvp" });
+    sendJson(response, 200, { ok: true, service: "ohada-financeos-mvp", config: publicConfig });
     return;
   }
 
