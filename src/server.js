@@ -82,8 +82,6 @@ setInterval(() => {
 }, config.jobWorkerIntervalMs);
 
 async function handleApi(request, response, url) {
-  const db = await readDb();
-
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, { ok: true, service: "ohada-financeos-mvp", config: publicConfig });
     return;
@@ -109,6 +107,8 @@ async function handleApi(request, response, url) {
 
   const authenticated = await requireAuth(request, response);
   if (!authenticated) return;
+  const organizationId = authenticated.organization?.id ?? authenticated.user.organizationId;
+  const db = await readDb(organizationId);
 
   if (request.method === "GET" && url.pathname === "/api/organizations") {
     sendJson(response, 200, await readOrganizations());
@@ -118,14 +118,14 @@ async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/users") {
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return;
-    sendJson(response, 200, await readUsers());
+    sendJson(response, 200, await readUsers(organizationId));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/users") {
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return;
-    const result = await addUser(await readJson(request));
+    const result = await addUser({ ...(await readJson(request)), organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -140,14 +140,14 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/jobs") {
-    sendJson(response, 200, await readJobs());
+    sendJson(response, 200, await readJobs(organizationId));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/jobs") {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
-    const result = await enqueueJob(await readJson(request));
+    const result = await enqueueJob({ ...(await readJson(request)), organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -155,19 +155,19 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/reports/export") {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
-    const result = await enqueueJob({ type: "financial-statements-export", payload: await readJson(request) });
+    const result = await enqueueJob({ type: "financial-statements-export", organizationId, payload: await readJson(request) });
     sendJson(response, result.ok ? 202 : result.status ?? 422, result);
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/files") {
-    sendJson(response, 200, await readStoredFiles());
+    sendJson(response, 200, await readStoredFiles(organizationId));
     return;
   }
 
   if (request.method === "GET" && url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/content")) {
     const fileId = decodeURIComponent(url.pathname.split("/").at(-2));
-    const stored = await readStoredFileContent(fileId);
+    const stored = await readStoredFileContent(fileId, organizationId);
     if (!stored) {
       sendJson(response, 404, { error: "Fichier introuvable." });
       return;
@@ -183,7 +183,7 @@ async function handleApi(request, response, url) {
   if (request.method === "POST" && url.pathname === "/api/files/text") {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
-    const result = await saveTextFile(await readJson(request));
+    const result = await saveTextFile({ ...(await readJson(request)), organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -197,7 +197,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const result = await updateCompany(payload);
+    const result = await updateCompany({ ...payload, organizationId });
     sendJson(response, result.ok ? 200 : result.status ?? 422, result);
     return;
   }
@@ -221,7 +221,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const result = await addAuxiliaryAccount(payload);
+    const result = await addAuxiliaryAccount({ ...payload, organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -235,7 +235,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const result = await addAccountingPeriod(payload);
+    const result = await addAccountingPeriod({ ...payload, organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -247,7 +247,7 @@ async function handleApi(request, response, url) {
     if (["lock", "unlock"].includes(action)) {
       const auth = await requireRole(request, response, ["owner", "admin"]);
       if (!auth) return;
-      const result = await setAccountingPeriodStatus(periodId, action === "lock" ? "locked" : "open");
+      const result = await setAccountingPeriodStatus(periodId, action === "lock" ? "locked" : "open", organizationId);
       sendJson(response, result.ok ? 200 : 404, result);
       return;
     }
@@ -299,6 +299,7 @@ async function handleApi(request, response, url) {
 
     const batch = await addSubscriptionBatch({
       id: batchId,
+      organizationId,
       name: String(payload.name || "").trim(),
       description: String(payload.description || payload.name || "").trim(),
       startDate: payload.startDate,
@@ -306,13 +307,13 @@ async function handleApi(request, response, url) {
       frequency: "monthly",
       entryCount: built.entries.length,
       createdAt: new Date().toISOString()
-    }, built.entries);
+    }, built.entries.map((entry) => ({ ...entry, organizationId })));
     sendJson(response, 201, { ok: true, batch, entries: built.entries });
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/lettering") {
-    sendJson(response, 200, await readLetteringState(url.searchParams.get("accountCode") ?? ""));
+    sendJson(response, 200, await readLetteringState(url.searchParams.get("accountCode") ?? "", organizationId));
     return;
   }
 
@@ -325,7 +326,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const result = await addManualLettering(payload);
+    const result = await addManualLettering({ ...payload, organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -334,7 +335,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
     const payload = await readJson(request);
-    const result = await addAutomaticLettering(payload);
+    const result = await addAutomaticLettering({ ...payload, organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
@@ -388,12 +389,13 @@ async function handleApi(request, response, url) {
         return;
       }
 
-      normalizedEntries.push(normalizeJournalEntry({ ...draft, batchId }));
+      normalizedEntries.push(normalizeJournalEntry({ ...draft, batchId, organizationId }));
     }
     const imported = await addJournalEntries(normalizedEntries);
-    const learned = await addClassificationCorrections(corrections);
+    const learned = await addClassificationCorrections(corrections.map((correction) => ({ ...correction, organizationId })));
     const batch = await addBankImportBatch({
       id: batchId,
+      organizationId,
       createdAt: new Date().toISOString(),
       source: "bank-csv",
       status: "posted",
@@ -418,7 +420,7 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return;
     const batchId = url.pathname.split("/").at(-2);
-    const result = await voidBankImportBatch(batchId);
+    const result = await voidBankImportBatch(batchId, organizationId);
     sendJson(response, result.ok ? 200 : result.status ?? 404, result);
     return;
   }
@@ -434,7 +436,7 @@ async function handleApi(request, response, url) {
       return;
     }
 
-    const entry = normalizeJournalEntry(payload);
+    const entry = normalizeJournalEntry({ ...payload, organizationId });
     await addJournalEntry(entry);
     sendJson(response, 201, entry);
     return;
@@ -511,7 +513,8 @@ async function processNextJob() {
       return;
     }
 
-    const snapshot = await readDb();
+    const organizationId = job.organizationId;
+    const snapshot = await readDb(organizationId);
     const from = String(job.payload?.from || "");
     const to = String(job.payload?.to || "");
     const entries = filterEntriesByPeriod(snapshot.journalEntries, from, to);
@@ -529,6 +532,7 @@ async function processNextJob() {
     };
     const periodSlug = [from || "debut", to || "fin"].join("_");
     const saved = await saveTextFile({
+      organizationId,
       name: `etats-financiers-${periodSlug}.json`,
       content: JSON.stringify(exportBody, null, 2),
       mimeType: "application/json; charset=utf-8"

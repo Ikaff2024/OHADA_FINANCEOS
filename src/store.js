@@ -130,9 +130,9 @@ export async function readOrganizations() {
   return readAllOrganizations(db);
 }
 
-export async function readUsers() {
+export async function readUsers(organizationId = defaultOrganizationId) {
   const db = await getDatabase();
-  return readAllUsers(db).map(publicUser);
+  return readAllUsers(db, organizationId).map(publicUser);
 }
 
 export async function addUser(input) {
@@ -203,6 +203,7 @@ export async function enqueueJob(input) {
   const db = await getDatabase();
   const job = {
     id: crypto.randomUUID(),
+    organizationId: input.organizationId ?? defaultOrganizationId,
     type: String(input.type || "").trim(),
     status: "queued",
     payload: input.payload ?? {},
@@ -217,14 +218,15 @@ export async function enqueueJob(input) {
   return { ok: true, job };
 }
 
-export async function readJobs() {
+export async function readJobs(organizationId = defaultOrganizationId) {
   const db = await getDatabase();
   return db.prepare(`
     SELECT *
     FROM jobs
+    WHERE organization_id = ?
     ORDER BY created_at DESC
     LIMIT 100
-  `).all().map(mapJob);
+  `).all(organizationId).map(mapJob);
 }
 
 export async function claimNextJob() {
@@ -287,6 +289,7 @@ export async function saveTextFile(input) {
   const fileStats = await stat(absolutePath);
   const file = {
     id,
+    organizationId: input.organizationId ?? defaultOrganizationId,
     name,
     path: relativePath,
     mimeType,
@@ -297,9 +300,9 @@ export async function saveTextFile(input) {
   return { ok: true, file };
 }
 
-export async function readStoredFileContent(fileId) {
+export async function readStoredFileContent(fileId, organizationId = defaultOrganizationId) {
   const db = await getDatabase();
-  const row = db.prepare("SELECT * FROM stored_files WHERE id = ?").get(fileId);
+  const row = db.prepare("SELECT * FROM stored_files WHERE id = ? AND organization_id = ?").get(fileId, organizationId);
   if (!row) return null;
   const file = mapStoredFile(row);
   return {
@@ -308,19 +311,21 @@ export async function readStoredFileContent(fileId) {
   };
 }
 
-export async function readStoredFiles() {
+export async function readStoredFiles(organizationId = defaultOrganizationId) {
   const db = await getDatabase();
   return db.prepare(`
     SELECT *
     FROM stored_files
+    WHERE organization_id = ?
     ORDER BY created_at DESC
     LIMIT 100
-  `).all().map(mapStoredFile);
+  `).all(organizationId).map(mapStoredFile);
 }
 
 export async function updateCompany(input) {
   const db = await getDatabase();
-  const current = readCompany(db);
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const current = readCompany(db, organizationId);
   const company = {
     ...current,
     name: String(input.name || "").trim(),
@@ -339,6 +344,7 @@ export async function updateCompany(input) {
     insertCompany(db, company);
     ensurePeriodForCompany(db, company);
     insertAuditEvent(db, {
+      organizationId,
       action: "company.update",
       entityType: "company",
       entityId: company.id,
@@ -347,7 +353,7 @@ export async function updateCompany(input) {
     });
   });
 
-  return { ok: true, company: readCompany(db), accountingPeriods: readPeriods(db) };
+  return { ok: true, company: readCompany(db, organizationId), accountingPeriods: readPeriods(db, organizationId) };
 }
 
 export async function addJournalEntry(entry) {
@@ -359,12 +365,14 @@ export async function addJournalEntries(entries) {
 
   const db = await getDatabase();
   const normalizedEntries = entries.map((entry) => normalizeJournalEntry(entry));
+  const organizationId = normalizedEntries[0]?.organizationId ?? defaultOrganizationId;
   assertEntriesInOpenPeriods(db, normalizedEntries);
   withTransaction(db, () => {
     for (const entry of normalizedEntries) {
       insertEntry(db, entry);
     }
     insertAuditEvent(db, {
+      organizationId,
       action: normalizedEntries.length === 1 ? "journal.create" : "journal.bulk_create",
       entityType: "journal_entry",
       entityId: normalizedEntries.length === 1 ? normalizedEntries[0].id : "batch",
@@ -396,6 +404,7 @@ export async function addAuxiliaryAccount(input) {
 
   const auxiliary = {
     code,
+    organizationId: input.organizationId ?? defaultOrganizationId,
     label,
     accountCode,
     createdAt: new Date().toISOString()
@@ -403,6 +412,7 @@ export async function addAuxiliaryAccount(input) {
   withTransaction(db, () => {
     insertAuxiliaryAccount(db, auxiliary);
     insertAuditEvent(db, {
+      organizationId: auxiliary.organizationId,
       action: "auxiliary.create",
       entityType: "auxiliary_account",
       entityId: auxiliary.code,
@@ -415,7 +425,8 @@ export async function addAuxiliaryAccount(input) {
 
 export async function addAccountingPeriod(input = {}) {
   const db = await getDatabase();
-  const period = buildAccountingPeriod(db, input);
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const period = { ...buildAccountingPeriod(db, input), organizationId };
   const errors = validatePeriod(db, period);
   if (errors.length > 0) {
     return { ok: false, status: 422, errors };
@@ -424,6 +435,7 @@ export async function addAccountingPeriod(input = {}) {
   withTransaction(db, () => {
     insertPeriod(db, period);
     insertAuditEvent(db, {
+      organizationId,
       action: "period.create",
       entityType: "accounting_period",
       entityId: period.id,
@@ -449,6 +461,7 @@ export async function deleteJournalEntry(entryId) {
     db.prepare("DELETE FROM journal_lines WHERE entry_id = ?").run(entryId);
     db.prepare("DELETE FROM journal_entries WHERE id = ?").run(entryId);
     insertAuditEvent(db, {
+      organizationId: entry.organizationId,
       action: "journal.delete",
       entityType: "journal_entry",
       entityId: entryId,
@@ -483,6 +496,7 @@ export async function addBankImportBatch(batch) {
   withTransaction(db, () => {
     insertBatch(db, batch);
     insertAuditEvent(db, {
+      organizationId: batch.organizationId,
       action: "bank_import.commit",
       entityType: "bank_import_batch",
       entityId: batch.id,
@@ -506,6 +520,7 @@ export async function addSubscriptionBatch(batch, entries) {
       insertEntry(db, entry);
     }
     insertAuditEvent(db, {
+      organizationId: batch.organizationId,
       action: "subscription.generate",
       entityType: "subscription_batch",
       entityId: batch.id,
@@ -520,13 +535,14 @@ export async function addSubscriptionBatch(batch, entries) {
   };
 }
 
-export async function readLetteringState(accountCode = "") {
+export async function readLetteringState(accountCode = "", organizationId = defaultOrganizationId) {
   const db = await getDatabase();
-  return buildLetteringState(db, accountCode);
+  return buildLetteringState(db, accountCode, organizationId);
 }
 
 export async function addManualLettering(input) {
   const db = await getDatabase();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
   const selectedRefs = Array.isArray(input.lineRefs)
     ? [...new Set(input.lineRefs.map((ref) => String(ref || "").trim()).filter(Boolean))]
     : [];
@@ -535,7 +551,7 @@ export async function addManualLettering(input) {
     return { ok: false, status: 422, error: "Selectionnez au moins deux lignes a lettrer." };
   }
 
-  const rows = readLetteringRows(db);
+  const rows = readLetteringRows(db, organizationId);
   const rowsByRef = new Map(rows.map((row) => [row.lineRef, row]));
   const selectedRows = selectedRefs.map((ref) => rowsByRef.get(ref));
   if (selectedRows.some((row) => !row)) {
@@ -560,8 +576,9 @@ export async function addManualLettering(input) {
 
   let group;
   withTransaction(db, () => {
-    group = createLetteringGroup(db, firstAccountCode, selectedRefs, "manual");
+    group = createLetteringGroup(db, firstAccountCode, selectedRefs, "manual", organizationId);
     insertAuditEvent(db, {
+      organizationId,
       action: "lettering.manual",
       entityType: "lettering_group",
       entityId: group.id,
@@ -569,13 +586,14 @@ export async function addManualLettering(input) {
       details: group
     });
   });
-  return { ok: true, group, rows: buildLetteringState(db, firstAccountCode) };
+  return { ok: true, group, rows: buildLetteringState(db, firstAccountCode, organizationId) };
 }
 
 export async function addAutomaticLettering(input = {}) {
   const db = await getDatabase();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
   const requestedAccountCode = String(input.accountCode || "").trim();
-  const rows = readLetteringRows(db)
+  const rows = readLetteringRows(db, organizationId)
     .filter((row) => !row.letteringCode)
     .filter((row) => !requestedAccountCode || row.accountCode === requestedAccountCode)
     .filter((row) => row.debit > 0 || row.credit > 0);
@@ -584,11 +602,12 @@ export async function addAutomaticLettering(input = {}) {
   withTransaction(db, () => {
     for (const rowsForAccount of groupRowsByAccount(rows).values()) {
       for (const match of matchLetteringPairs(rowsForAccount)) {
-        groups.push(createLetteringGroup(db, match[0].accountCode, match.map((row) => row.lineRef), "automatic"));
+        groups.push(createLetteringGroup(db, match[0].accountCode, match.map((row) => row.lineRef), "automatic", organizationId));
       }
     }
     if (groups.length > 0) {
       insertAuditEvent(db, {
+        organizationId,
         action: "lettering.auto",
         entityType: "lettering_group",
         entityId: "automatic",
@@ -602,11 +621,11 @@ export async function addAutomaticLettering(input = {}) {
     ok: true,
     groups,
     matchedLineCount: groups.reduce((count, group) => count + group.lineRefs.length, 0),
-    rows: buildLetteringState(db, requestedAccountCode)
+    rows: buildLetteringState(db, requestedAccountCode, organizationId)
   };
 }
 
-export async function voidBankImportBatch(batchId) {
+export async function voidBankImportBatch(batchId, organizationId = defaultOrganizationId) {
   const db = await getDatabase();
   const batch = readBatch(db, batchId);
   if (!batch) {
@@ -633,9 +652,10 @@ export async function voidBankImportBatch(batchId) {
     db.prepare(`
       UPDATE bank_import_batches
       SET status = 'voided', voided_at = ?, updated_at = ?
-      WHERE id = ?
-    `).run(new Date().toISOString(), new Date().toISOString(), batchId);
+      WHERE id = ? AND organization_id = ?
+    `).run(new Date().toISOString(), new Date().toISOString(), batchId, organizationId);
     insertAuditEvent(db, {
+      organizationId,
       action: "bank_import.void",
       entityType: "bank_import_batch",
       entityId: batchId,
@@ -678,13 +698,13 @@ export async function addClassificationCorrections(corrections) {
   return newCorrections;
 }
 
-export async function setAccountingPeriodStatus(periodId, status) {
+export async function setAccountingPeriodStatus(periodId, status, organizationId = defaultOrganizationId) {
   const db = await getDatabase();
   if (!["open", "locked"].includes(status)) {
     return { ok: false, error: "Statut de periode invalide." };
   }
 
-  const period = readPeriod(db, periodId);
+  const period = readPeriod(db, periodId, organizationId);
   if (!period) {
     return { ok: false, error: "Periode introuvable." };
   }
@@ -694,18 +714,19 @@ export async function setAccountingPeriodStatus(periodId, status) {
     db.prepare(`
       UPDATE accounting_periods
       SET status = ?, locked_at = ?, updated_at = ?
-      WHERE id = ?
-    `).run(status, status === "locked" ? timestamp : null, timestamp, periodId);
+      WHERE id = ? AND organization_id = ?
+    `).run(status, status === "locked" ? timestamp : null, timestamp, periodId, organizationId);
     insertAuditEvent(db, {
+      organizationId,
       action: status === "locked" ? "period.lock" : "period.unlock",
       entityType: "accounting_period",
       entityId: periodId,
       summary: `${status === "locked" ? "Exercice verrouille" : "Exercice rouvert"}: ${period.name}`,
-      details: { before: period, after: readPeriod(db, periodId) }
+      details: { before: period, after: readPeriod(db, periodId, organizationId) }
     });
   });
 
-  return { ok: true, period: readPeriod(db, periodId) };
+  return { ok: true, period: readPeriod(db, periodId, organizationId) };
 }
 
 async function getDatabase() {
@@ -952,7 +973,7 @@ function readSnapshot(db, organizationId = defaultOrganizationId) {
   return {
     company: readCompany(db, organizationId),
     organizations: readAllOrganizations(db),
-    users: readAllUsers(db).map(publicUser),
+    users: readAllUsers(db, organizationId).map(publicUser),
     jobs: db.prepare("SELECT * FROM jobs WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapJob),
     storedFiles: db.prepare("SELECT * FROM stored_files WHERE organization_id = ? ORDER BY created_at DESC LIMIT 100").all(organizationId).map(mapStoredFile),
     accountingPeriods: readPeriods(db, organizationId),
@@ -1046,7 +1067,15 @@ function readOrganization(db, organizationId) {
   return row ? mapOrganization(row) : null;
 }
 
-function readAllUsers(db) {
+function readAllUsers(db, organizationId = null) {
+  if (organizationId) {
+    return db.prepare(`
+      SELECT *
+      FROM users
+      WHERE organization_id = ?
+      ORDER BY created_at ASC
+    `).all(organizationId).map(mapUser);
+  }
   return db.prepare(`
     SELECT *
     FROM users
@@ -1080,8 +1109,8 @@ function readPeriods(db, organizationId = defaultOrganizationId) {
   `).all(organizationId).map(mapPeriod);
 }
 
-function readPeriod(db, periodId) {
-  const row = db.prepare("SELECT * FROM accounting_periods WHERE id = ?").get(periodId);
+function readPeriod(db, periodId, organizationId = defaultOrganizationId) {
+  const row = db.prepare("SELECT * FROM accounting_periods WHERE id = ? AND organization_id = ?").get(periodId, organizationId);
   return row ? mapPeriod(row) : null;
 }
 
@@ -1135,13 +1164,15 @@ function validateCompany(company) {
 }
 
 function buildAccountingPeriod(db, input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
   const latest = db.prepare(`
     SELECT *
     FROM accounting_periods
+    WHERE organization_id = ?
     ORDER BY end_date DESC
     LIMIT 1
-  `).get();
-  const nextRange = latest ? nextPeriodRange(mapPeriod(latest)) : nextPeriodRange(readCompany(db));
+  `).get(organizationId);
+  const nextRange = latest ? nextPeriodRange(mapPeriod(latest)) : nextPeriodRange(readCompany(db, organizationId));
   const startDate = String(input.startDate || nextRange.startDate).trim();
   const endDate = String(input.endDate || nextRange.endDate).trim();
   const year = startDate.slice(0, 4);
@@ -1165,16 +1196,16 @@ function validatePeriod(db, period) {
     errors.push("La fin d'exercice doit etre posterieure au debut.");
   }
 
-  const sameId = readPeriod(db, period.id);
+  const sameId = readPeriod(db, period.id, period.organizationId);
   if (sameId) errors.push("Un exercice avec cet identifiant existe deja.");
 
   if (errors.length === 0) {
     const overlap = db.prepare(`
       SELECT *
       FROM accounting_periods
-      WHERE NOT (end_date < ? OR start_date > ?)
+      WHERE organization_id = ? AND NOT (end_date < ? OR start_date > ?)
       LIMIT 1
-    `).get(period.startDate, period.endDate);
+    `).get(period.organizationId ?? defaultOrganizationId, period.startDate, period.endDate);
     if (overlap) errors.push(`La periode chevauche ${overlap.name}.`);
   }
 
@@ -1386,12 +1417,12 @@ function readLetteringRows(db, organizationId = defaultOrganizationId) {
   });
 }
 
-function buildLetteringState(db, accountCode = "") {
+function buildLetteringState(db, accountCode = "", organizationId = defaultOrganizationId) {
   const requestedAccountCode = String(accountCode || "").trim();
-  const rows = readLetteringRows(db).filter((row) => !requestedAccountCode || row.accountCode === requestedAccountCode);
+  const rows = readLetteringRows(db, organizationId).filter((row) => !requestedAccountCode || row.accountCode === requestedAccountCode);
   return {
     rows,
-    groups: readLetteringGroups(db).filter((group) => !requestedAccountCode || group.accountCode === requestedAccountCode),
+    groups: readLetteringGroups(db, organizationId).filter((group) => !requestedAccountCode || group.accountCode === requestedAccountCode),
     accountCode: requestedAccountCode || undefined
   };
 }
@@ -1644,9 +1675,10 @@ function insertAuditEvent(db, event) {
   );
 }
 
-function createLetteringGroup(db, accountCode, lineRefs, mode) {
+function createLetteringGroup(db, accountCode, lineRefs, mode, organizationId = defaultOrganizationId) {
   const group = {
     id: crypto.randomUUID(),
+    organizationId,
     code: nextLetteringCode(db),
     accountCode,
     lineRefs,

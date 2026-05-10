@@ -58,6 +58,7 @@ export function validateJournalEntry(input) {
 export function normalizeJournalEntry(input) {
   return {
     id: input.id ?? crypto.randomUUID(),
+    organizationId: input.organizationId,
     date: input.date,
     reference: String(input.reference || generateEntryReference(input)).trim(),
     description: String(input.description).trim(),

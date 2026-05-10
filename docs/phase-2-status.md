@@ -30,6 +30,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Schema PostgreSQL cible disponible dans `db/postgres/schema.sql`.
 - Export SQL SQLite vers PostgreSQL disponible avec `npm.cmd run db:pg:dump`.
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
+- Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.
 
 ## Partiellement fait
@@ -44,7 +45,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 ## Reste a faire pour finir la phase 2
 
 - Ajouter les invitations email et la reinitialisation de mot de passe.
-- Passer les endpoints a un contexte organisation explicite quand plusieurs organisations seront creables.
+- Ajouter la creation d'organisations depuis l'interface quand le parcours multi-entreprise devra etre expose.
 - Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
 - Introduire PostgreSQL avec migrations reproductibles.
 - Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.
