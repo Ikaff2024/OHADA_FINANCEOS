@@ -44,6 +44,9 @@
         <button class="nav-item" type="button" data-view-target="imports"><span class="nav-icon">v</span> Imports bancaires</button>
         <button class="nav-item" type="button" data-view-target="subscriptions"><span class="nav-icon">a</span> Abonnements</button>
 
+        <div class="nav-label">Configuration</div>
+        <button class="nav-item" type="button" data-view-target="settings"><span class="nav-icon">~</span> Parametres entreprise</button>
+
         <div class="user-card">
           <div class="avatar">AI</div>
           <div>
@@ -591,6 +594,51 @@
               <span class="status-pill" id="reports-closing-status">En controle</span>
             </div>
             <div class="closing-controls" id="reports-closing-controls"></div>
+          </article>
+        </section>
+
+        <section class="view" data-view="settings">
+          <article class="panel entry-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Parametres</p>
+                <h2>Entreprise et exercice</h2>
+              </div>
+              <span class="status-pill">Societe</span>
+            </div>
+
+            <form id="company-form">
+              <div class="form-row single">
+                <label>
+                  Nom de la societe
+                  <input name="name" type="text" placeholder="Ex: Demo PME OHADA" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Pays
+                  <input name="country" type="text" maxlength="3" placeholder="Ex: CI" required />
+                </label>
+                <label>
+                  Devise
+                  <input name="currency" type="text" maxlength="3" placeholder="Ex: XOF" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Debut exercice
+                  <input name="fiscalYearStart" type="date" required />
+                </label>
+                <label>
+                  Fin exercice
+                  <input name="fiscalYearEnd" type="date" required />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Enregistrer les parametres</button>
+              </div>
+            </form>
+            <div class="message" id="company-message"></div>
           </article>
         </section>
       </main>

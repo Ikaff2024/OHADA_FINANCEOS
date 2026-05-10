@@ -19,6 +19,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 ## Contenu du MVP
 
 - Creation et lecture d'une entreprise de demonstration
+- Parametrage de l'entreprise, de la devise et de l'exercice
 - Plan comptable SYSCOHADA enrichi depuis les PDF de reference
 - Saisie d'ecritures comptables equilibrees
 - References obligatoires sur les ecritures
@@ -58,6 +59,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 
 - `GET /api/health`
 - `GET /api/company`
+- `PUT /api/company`
 - `GET /api/accounts`
 - `GET /api/account-classes`
 - `GET /api/auxiliary-accounts`

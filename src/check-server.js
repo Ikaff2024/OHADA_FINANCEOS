@@ -28,6 +28,21 @@ try {
   assert.equal(html.status, 200);
   assert.match(await html.text(), /OHADA FinanceOS/);
 
+  const updateCompany = await fetch(`http://localhost:${port}/api/company`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Client Demo FinanceOS",
+      country: "CI",
+      currency: "XOF",
+      fiscalYearStart: "2026-01-01",
+      fiscalYearEnd: "2026-12-31"
+    })
+  });
+  assert.equal(updateCompany.status, 200);
+  const updatedCompany = await updateCompany.json();
+  assert.equal(updatedCompany.company.name, "Client Demo FinanceOS");
+
   const balanceSheet = await fetchJson(`http://localhost:${port}/api/reports/balance-sheet`);
   assert.equal(typeof balanceSheet.assets, "number");
 

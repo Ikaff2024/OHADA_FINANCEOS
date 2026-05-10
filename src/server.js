@@ -33,6 +33,7 @@ import {
   readDb,
   readLetteringState,
   setAccountingPeriodStatus,
+  updateCompany,
   voidBankImportBatch
 } from "./store.js";
 import { buildSubscriptionEntries } from "./subscriptions.js";
@@ -71,6 +72,13 @@ async function handleApi(request, response, url) {
 
   if (request.method === "GET" && url.pathname === "/api/company") {
     sendJson(response, 200, db.company);
+    return;
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/company") {
+    const payload = await readJson(request);
+    const result = await updateCompany(payload);
+    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
     return;
   }
 

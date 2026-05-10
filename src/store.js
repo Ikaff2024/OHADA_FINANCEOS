@@ -72,6 +72,31 @@ export async function readDb() {
   return readSnapshot(db);
 }
 
+export async function updateCompany(input) {
+  const db = await getDatabase();
+  const current = readCompany(db);
+  const company = {
+    ...current,
+    name: String(input.name || "").trim(),
+    country: String(input.country || "").trim().toUpperCase(),
+    currency: String(input.currency || "").trim().toUpperCase(),
+    fiscalYearStart: String(input.fiscalYearStart || "").trim(),
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+  };
+
+  const errors = validateCompany(company);
+  if (errors.length > 0) {
+    return { ok: false, status: 422, errors };
+  }
+
+  withTransaction(db, () => {
+    insertCompany(db, company);
+    ensurePeriodForCompany(db, company);
+  });
+
+  return { ok: true, company: readCompany(db), accountingPeriods: readPeriods(db) };
+}
+
 export async function addJournalEntry(entry) {
   return (await addJournalEntries([entry]))[0];
 }
@@ -551,14 +576,52 @@ function ensureCompanyPeriod(db) {
   const count = Number(db.prepare("SELECT COUNT(*) AS count FROM accounting_periods").get().count);
   if (count > 0) return;
 
+  ensurePeriodForCompany(db, company);
+}
+
+function ensurePeriodForCompany(db, company) {
+  const periodId = `period-${company.fiscalYearStart.slice(0, 4)}`;
+  const existing = readPeriod(db, periodId);
+  if (existing) {
+    db.prepare(`
+      UPDATE accounting_periods
+      SET name = ?, start_date = ?, end_date = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      `Exercice ${company.fiscalYearStart.slice(0, 4)}`,
+      company.fiscalYearStart,
+      company.fiscalYearEnd,
+      new Date().toISOString(),
+      periodId
+    );
+    return;
+  }
+
   insertPeriod(db, {
-    id: `period-${company.fiscalYearStart.slice(0, 4)}`,
+    id: periodId,
     name: `Exercice ${company.fiscalYearStart.slice(0, 4)}`,
     startDate: company.fiscalYearStart,
     endDate: company.fiscalYearEnd,
     status: "open",
     updatedAt: new Date().toISOString()
   });
+}
+
+function validateCompany(company) {
+  const errors = [];
+  if (company.name.length < 2) errors.push("Le nom de la societe est obligatoire.");
+  if (!/^[A-Z]{2,3}$/.test(company.country)) errors.push("Le pays doit etre renseigne avec un code court, ex: CI.");
+  if (!/^[A-Z]{3}$/.test(company.currency)) errors.push("La devise doit etre un code a 3 lettres, ex: XOF.");
+  if (!isIsoDate(company.fiscalYearStart)) errors.push("La date de debut d'exercice est invalide.");
+  if (!isIsoDate(company.fiscalYearEnd)) errors.push("La date de fin d'exercice est invalide.");
+  if (isIsoDate(company.fiscalYearStart) && isIsoDate(company.fiscalYearEnd) && company.fiscalYearEnd < company.fiscalYearStart) {
+    errors.push("La fin d'exercice doit etre posterieure au debut.");
+  }
+  return errors;
+}
+
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 }
 
 function ensureDefaultAuxiliaries(db) {

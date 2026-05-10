@@ -37,6 +37,8 @@ const bankCsvEl = document.querySelector("#bank-csv");
 const importPreviewEl = document.querySelector("#import-preview");
 const importStatusEl = document.querySelector("#import-status");
 const commitImportButton = document.querySelector("#commit-import");
+const companyForm = document.querySelector("#company-form");
+const companyMessageEl = document.querySelector("#company-message");
 const subscriptionForm = document.querySelector("#subscription-form");
 const subscriptionMessageEl = document.querySelector("#subscription-message");
 const journalSearchEl = document.querySelector("#journal-search");
@@ -96,6 +98,7 @@ autoBalanceEl.addEventListener("change", () => {
   renderEntryBalanceStatus();
 });
 commitImportButton.addEventListener("click", commitImport);
+companyForm.addEventListener("submit", submitCompany);
 subscriptionForm.addEventListener("submit", submitSubscription);
 journalSearchEl.addEventListener("input", renderEntries);
 journalSourceEl.addEventListener("change", renderEntries);
@@ -171,6 +174,11 @@ const viewCopy = {
     label: "Etats financiers",
     title: 'Etats <span>financiers</span> de controle.',
     subtitle: "Consultez la balance et les premiers indicateurs de coherence comptable."
+  },
+  settings: {
+    label: "Parametres entreprise",
+    title: 'Parametres de <span>l’entreprise</span>.',
+    subtitle: "Mettez a jour la societe, la devise et les dates d'exercice utilisees dans les etats."
   }
 };
 
@@ -187,9 +195,8 @@ async function boot() {
   state.accounts = accounts;
   state.accountClasses = accountClasses;
   state.company = company;
-  document.querySelector("#company-name").textContent = company.name;
-  document.querySelector("#company").textContent =
-    `${company.country} - ${company.currency} - Exercice ${company.fiscalYearStart.slice(0, 4)}`;
+  renderCompanyHeader();
+  fillCompanyForm();
   form.elements.date.valueAsDate = new Date();
   form.elements.reference.value = nextManualReference();
   renderAccountOptions();
@@ -212,6 +219,23 @@ function setUiTheme(theme, persist = true) {
   document.body.dataset.uiTheme = selectedTheme;
   uiThemeEl.value = selectedTheme;
   if (persist) localStorage.setItem("ohada-ui-theme", selectedTheme);
+}
+
+function renderCompanyHeader() {
+  const company = state.company;
+  if (!company) return;
+  document.querySelector("#company-name").textContent = company.name;
+  document.querySelector("#company").textContent =
+    `${company.country} - ${company.currency} - Exercice ${company.fiscalYearStart.slice(0, 4)}`;
+}
+
+function fillCompanyForm() {
+  if (!state.company || !companyForm) return;
+  companyForm.elements.name.value = state.company.name ?? "";
+  companyForm.elements.country.value = state.company.country ?? "";
+  companyForm.elements.currency.value = state.company.currency ?? "";
+  companyForm.elements.fiscalYearStart.value = state.company.fiscalYearStart ?? "";
+  companyForm.elements.fiscalYearEnd.value = state.company.fiscalYearEnd ?? "";
 }
 
 function initSubscriptionDefaults() {
@@ -246,7 +270,8 @@ function syncSubscriptionLabel(side) {
 }
 
 async function refresh() {
-  const [entries, auxiliaryAccounts, reports, batches, subscriptionBatches, lettering, periods] = await Promise.all([
+  const [company, entries, auxiliaryAccounts, reports, batches, subscriptionBatches, lettering, periods] = await Promise.all([
+    fetchJson("/api/company"),
     fetchJson("/api/journal-entries"),
     fetchJson("/api/auxiliary-accounts"),
     fetchReportsForPeriod(),
@@ -256,6 +281,7 @@ async function refresh() {
     fetchJson("/api/accounting-periods")
   ]);
 
+  state.company = company;
   state.entries = entries;
   state.auxiliaryAccounts = auxiliaryAccounts;
   state.batches = batches;
@@ -264,6 +290,8 @@ async function refresh() {
   state.periods = periods;
   state.reports = reports;
 
+  renderCompanyHeader();
+  fillCompanyForm();
   renderAuxiliaryOptions();
   renderLedgerAccountFilter();
   renderLedgerAuxiliaryFilter();
@@ -412,6 +440,39 @@ async function submitAuxiliaryAccount(event) {
 
   auxiliaryForm.reset();
   setAuxiliaryMessage("Auxiliaire cree.");
+  await refresh();
+}
+
+async function submitCompany(event) {
+  event.preventDefault();
+  setCompanyMessage("Enregistrement en cours...");
+
+  const payload = {
+    name: companyForm.elements.name.value,
+    country: companyForm.elements.country.value,
+    currency: companyForm.elements.currency.value,
+    fiscalYearStart: companyForm.elements.fiscalYearStart.value,
+    fiscalYearEnd: companyForm.elements.fiscalYearEnd.value
+  };
+
+  const response = await fetch("/api/company", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setCompanyMessage(body.errors?.join(" ") ?? body.error ?? "Parametres refuses.", true);
+    return;
+  }
+
+  state.company = body.company;
+  state.periods = body.accountingPeriods ?? state.periods;
+  renderCompanyHeader();
+  fillCompanyForm();
+  renderPeriods();
+  setCompanyMessage("Parametres de l'entreprise enregistres.");
   await refresh();
 }
 
@@ -1602,6 +1663,11 @@ async function fetchJson(url) {
 function setMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.classList.toggle("error", isError);
+}
+
+function setCompanyMessage(text, isError = false) {
+  companyMessageEl.textContent = text;
+  companyMessageEl.classList.toggle("error", isError);
 }
 
 function setAuxiliaryMessage(text, isError = false) {
