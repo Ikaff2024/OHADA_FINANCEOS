@@ -114,6 +114,25 @@ try {
   assert.equal(jobs.status, 200);
   assert.equal((await jobs.json()).some((job) => job.type === "bank-import-preview"), true);
 
+  const exportJob = await fetch(`http://localhost:${port}/api/reports/export`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ from: "2026-01-01", to: "2026-12-31" })
+  });
+  assert.equal(exportJob.status, 202);
+  const exportJobBody = await exportJob.json();
+  const finishedExportJob = await waitForJob(port, exportJobBody.job.id);
+  assert.equal(finishedExportJob.status, "done");
+  assert.equal(typeof finishedExportJob.result.fileId, "string");
+
+  const exportedFile = await fetch(`http://localhost:${port}/api/files/${finishedExportJob.result.fileId}/content`, {
+    headers: authHeaders
+  });
+  assert.equal(exportedFile.status, 200);
+  const exportedJson = await exportedFile.json();
+  assert.equal(exportedJson.company.name, "Demo PME OHADA");
+  assert.equal(Array.isArray(exportedJson.trialBalance), true);
+
   const createFile = await fetch(`http://localhost:${port}/api/files/text`, {
     method: "POST",
     headers: authHeaders,
@@ -451,4 +470,14 @@ async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status} sur ${url}`);
   return response.json();
+}
+
+async function waitForJob(targetPort, jobId) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const jobs = await fetchJson(`http://localhost:${targetPort}/api/jobs`);
+    const job = jobs.find((candidate) => candidate.id === jobId);
+    if (job && ["done", "failed"].includes(job.status)) return job;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`Job ${jobId} non termine`);
 }

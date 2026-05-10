@@ -232,6 +232,50 @@ export async function readJobs() {
   `).all().map(mapJob);
 }
 
+export async function claimNextJob() {
+  const db = await getDatabase();
+  const row = db.prepare(`
+    SELECT *
+    FROM jobs
+    WHERE status = 'queued'
+    ORDER BY created_at ASC
+    LIMIT 1
+  `).get();
+  if (!row) return null;
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE jobs
+    SET status = 'running', updated_at = ?, started_at = ?
+    WHERE id = ? AND status = 'queued'
+  `).run(now, now, row.id);
+
+  const claimed = db.prepare("SELECT * FROM jobs WHERE id = ?").get(row.id);
+  return claimed ? mapJob(claimed) : null;
+}
+
+export async function completeJob(jobId, result) {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE jobs
+    SET status = 'done', result_json = ?, error = NULL, updated_at = ?, finished_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(result ?? {}), now, now, jobId);
+  return { ok: true };
+}
+
+export async function failJob(jobId, error) {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE jobs
+    SET status = 'failed', error = ?, updated_at = ?, finished_at = ?
+    WHERE id = ?
+  `).run(String(error || "Erreur job"), now, now, jobId);
+  return { ok: true };
+}
+
 export async function saveTextFile(input) {
   const db = await getDatabase();
   const name = String(input.name || "").trim();
@@ -256,6 +300,17 @@ export async function saveTextFile(input) {
   };
   insertStoredFile(db, file);
   return { ok: true, file };
+}
+
+export async function readStoredFileContent(fileId) {
+  const db = await getDatabase();
+  const row = db.prepare("SELECT * FROM stored_files WHERE id = ?").get(fileId);
+  if (!row) return null;
+  const file = mapStoredFile(row);
+  return {
+    file,
+    content: await readFile(join(rootDir, file.path))
+  };
 }
 
 export async function readStoredFiles() {

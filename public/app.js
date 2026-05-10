@@ -9,6 +9,8 @@ const state = {
   importTransactions: [],
   batches: [],
   subscriptionBatches: [],
+  jobs: [],
+  storedFiles: [],
   lettering: { rows: [], groups: [] },
   auditEvents: [],
   reports: {
@@ -87,6 +89,9 @@ const balanceExportFormatEl = document.querySelector("#balance-export-format");
 const exportBalanceButton = document.querySelector("#export-balance");
 const printBalanceButton = document.querySelector("#print-balance");
 const printAuxiliaryBalanceButton = document.querySelector("#print-auxiliary-balance");
+const queueFinancialExportButton = document.querySelector("#queue-financial-export");
+const jobsMessageEl = document.querySelector("#jobs-message");
+const jobsTableEl = document.querySelector("#jobs-table");
 const auxiliaryBalanceSearchEl = document.querySelector("#auxiliary-balance-search");
 const auxiliaryBalancePartyFilterEl = document.querySelector("#auxiliary-balance-party-filter");
 const reportPeriodEls = document.querySelectorAll("[data-report-period]");
@@ -153,6 +158,7 @@ balanceFormatEl.addEventListener("change", renderTrialBalance);
 exportBalanceButton.addEventListener("click", exportTrialBalance);
 printBalanceButton.addEventListener("click", () => printState(balancePrintTitle()));
 printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliaryBalancePrintTitle()));
+queueFinancialExportButton.addEventListener("click", queueFinancialExport);
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
 reportPeriodEls.forEach((input) => input.addEventListener("change", () => updateReportPeriod(input)));
@@ -448,7 +454,7 @@ function syncSubscriptionLabel(side) {
 }
 
 async function refresh() {
-  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents] = await Promise.all([
+  const [company, entries, auxiliaryAccounts, batches, subscriptionBatches, lettering, periods, auditEvents, jobs, storedFiles] = await Promise.all([
     fetchJson("/api/company"),
     fetchJson("/api/journal-entries"),
     fetchJson("/api/auxiliary-accounts"),
@@ -456,7 +462,9 @@ async function refresh() {
     fetchJson("/api/subscriptions"),
     fetchJson("/api/lettering"),
     fetchJson("/api/accounting-periods"),
-    fetchJson("/api/audit-events")
+    fetchJson("/api/audit-events"),
+    fetchJson("/api/jobs"),
+    fetchJson("/api/files")
   ]);
 
   state.company = company;
@@ -467,6 +475,8 @@ async function refresh() {
   state.lettering = lettering;
   state.periods = periods;
   state.auditEvents = auditEvents;
+  state.jobs = jobs;
+  state.storedFiles = storedFiles;
   state.users = await fetchUsersForRole();
   renderReportPeriodOptions();
   ensureReportPeriodSelected();
@@ -494,6 +504,7 @@ async function refresh() {
   renderAuditActionFilter();
   renderAuditEvents();
   renderUsers();
+  renderJobs();
 }
 
 async function fetchUsersForRole() {
@@ -546,6 +557,38 @@ async function updateSelectedReportPeriod() {
   renderTrialBalance();
   renderAuxiliaries();
   renderGeneralLedger();
+}
+
+async function queueFinancialExport() {
+  setJobsMessage("Generation planifiee...");
+  const { from, to } = selectedReportPeriod();
+  const response = await fetch("/api/reports/export", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ from, to })
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    setJobsMessage(body.error ?? "Export refuse.", true);
+    return;
+  }
+
+  setJobsMessage("Export ajoute a la file de jobs.");
+  await refreshJobsUntilSettled(body.job?.id);
+}
+
+async function refreshJobsUntilSettled(jobId) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    state.jobs = await fetchJson("/api/jobs");
+    state.storedFiles = await fetchJson("/api/files");
+    renderJobs();
+    const job = state.jobs.find((candidate) => candidate.id === jobId);
+    if (job && ["done", "failed"].includes(job.status)) {
+      setJobsMessage(job.status === "done" ? "Export pret." : job.error || "Export echoue.", job.status === "failed");
+      return;
+    }
+  }
 }
 
 function setView(viewName) {
@@ -1626,6 +1669,42 @@ function renderUsers() {
   }
 }
 
+function renderJobs() {
+  const recentJobs = state.jobs.filter((job) => job.type === "financial-statements-export").slice(0, 8);
+  jobsTableEl.innerHTML = recentJobs.map((job) => `
+    <tr>
+      <td>
+        <strong>Etats financiers</strong>
+        <div class="muted-text">${job.payload?.from || "debut"} - ${job.payload?.to || "fin"}</div>
+      </td>
+      <td><span class="status-pill ${job.status === "failed" ? "terra" : ""}">${jobStatusLabel(job.status)}</span></td>
+      <td>${job.result?.fileId ? `<button class="btn" type="button" data-download-file="${escapeHtml(job.result.fileId)}" data-file-name="${escapeHtml(job.result.fileName || "export.json")}">Telecharger</button>` : escapeHtml(job.error || "-")}</td>
+      <td>${formatDateTime(job.createdAt)}</td>
+    </tr>
+  `).join("");
+
+  if (recentJobs.length === 0) {
+    jobsTableEl.innerHTML = `
+      <tr>
+        <td colspan="4">Aucun export serveur genere.</td>
+      </tr>
+    `;
+  }
+
+  for (const button of jobsTableEl.querySelectorAll("[data-download-file]")) {
+    button.addEventListener("click", () => downloadStoredFile(button.dataset.downloadFile, button.dataset.fileName));
+  }
+}
+
+function jobStatusLabel(status) {
+  return {
+    queued: "En attente",
+    running: "En cours",
+    done: "Termine",
+    failed: "Echoue"
+  }[status] || status;
+}
+
 async function applyManualLettering() {
   const lineRefs = [...document.querySelectorAll("[data-lettering-line]:checked")].map((input) => input.dataset.letteringLine);
   setLetteringMessage("Lettrage manuel en cours...");
@@ -2133,6 +2212,11 @@ function setUserMessage(text, isError = false) {
   userMessageEl.classList.toggle("error", isError);
 }
 
+function setJobsMessage(text, isError = false) {
+  jobsMessageEl.textContent = text;
+  jobsMessageEl.classList.toggle("error", isError);
+}
+
 function setSubscriptionMessage(text, isError = false) {
   subscriptionMessageEl.textContent = text;
   subscriptionMessageEl.classList.toggle("error", isError);
@@ -2194,6 +2278,21 @@ function downloadBlob(content, type, filename) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadStoredFile(fileId, filename) {
+  const response = await fetch(`/api/files/${encodeURIComponent(fileId)}/content`);
+  if (!response.ok) {
+    setJobsMessage("Telechargement impossible.", true);
+    return;
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || "export.json";
   link.click();
   URL.revokeObjectURL(url);
 }

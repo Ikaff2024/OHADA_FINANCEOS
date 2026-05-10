@@ -630,6 +630,30 @@
             </div>
             <div class="closing-controls" id="reports-closing-controls"></div>
           </article>
+
+          <article class="panel exports-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Jobs</p>
+                <h2>Exports serveur</h2>
+              </div>
+              <button class="btn btn-primary" type="button" id="queue-financial-export">Generer export</button>
+            </div>
+            <div class="message" id="jobs-message"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Traitement</th>
+                    <th>Statut</th>
+                    <th>Fichier</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="jobs-table"></tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section class="view" data-view="audit">

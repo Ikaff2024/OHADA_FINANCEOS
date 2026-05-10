@@ -31,8 +31,11 @@ import {
   addAutomaticLettering,
   addManualLettering,
   addSubscriptionBatch,
+  claimNextJob,
+  completeJob,
   deleteJournalEntry,
   enqueueJob,
+  failJob,
   loginUser,
   logoutUser,
   readAuthContext,
@@ -40,6 +43,7 @@ import {
   readJobs,
   readLetteringState,
   readOrganizations,
+  readStoredFileContent,
   readStoredFiles,
   readUsers,
   saveTextFile,
@@ -73,6 +77,10 @@ const server = createServer(async (request, response) => {
 server.listen(port, () => {
   console.log(`OHADA FinanceOS MVP disponible sur http://localhost:${port}`);
 });
+
+setInterval(() => {
+  processNextJob().catch((error) => console.error("Erreur worker jobs", error));
+}, 1500);
 
 async function handleApi(request, response, url) {
   const db = await readDb();
@@ -146,10 +154,35 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/reports/export") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return;
+    const result = await enqueueJob({ type: "financial-statements-export", payload: await readJson(request) });
+    sendJson(response, result.ok ? 202 : result.status ?? 422, result);
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/files") {
     const auth = await requireAuth(request, response);
     if (!auth) return;
     sendJson(response, 200, await readStoredFiles());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/content")) {
+    const auth = await requireAuth(request, response);
+    if (!auth) return;
+    const fileId = decodeURIComponent(url.pathname.split("/").at(-2));
+    const stored = await readStoredFileContent(fileId);
+    if (!stored) {
+      sendJson(response, 404, { error: "Fichier introuvable." });
+      return;
+    }
+    response.writeHead(200, {
+      "content-type": stored.file.mimeType,
+      "content-disposition": `attachment; filename="${stored.file.name.replace(/"/g, "")}"`
+    });
+    response.end(stored.content);
     return;
   }
 
@@ -463,11 +496,64 @@ function sendJson(response, status, payload) {
 function entriesForReportPeriod(entries, url) {
   const from = url.searchParams.get("from") || "";
   const to = url.searchParams.get("to") || "";
+  return filterEntriesByPeriod(entries, from, to);
+}
+
+function filterEntriesByPeriod(entries, from = "", to = "") {
   return entries.filter((entry) => {
     const afterStart = !from || entry.date >= from;
     const beforeEnd = !to || entry.date <= to;
     return afterStart && beforeEnd;
   });
+}
+
+async function processNextJob() {
+  const job = await claimNextJob();
+  if (!job) return;
+
+  try {
+    if (job.type !== "financial-statements-export") {
+      await failJob(job.id, `Type de job non supporte: ${job.type}`);
+      return;
+    }
+
+    const snapshot = await readDb();
+    const from = String(job.payload?.from || "");
+    const to = String(job.payload?.to || "");
+    const entries = filterEntriesByPeriod(snapshot.journalEntries, from, to);
+    const generatedAt = new Date().toISOString();
+    const exportBody = {
+      generatedAt,
+      period: { from: from || null, to: to || null },
+      company: snapshot.company,
+      trialBalance: buildTrialBalance(entries),
+      generalLedger: buildGeneralLedger(entries, snapshot.auxiliaryAccounts),
+      auxiliaryBalance: buildAuxiliaryBalance(entries, snapshot.auxiliaryAccounts),
+      balanceSheet: buildBalanceSheet(entries),
+      incomeStatement: buildIncomeStatement(entries),
+      closingControls: buildClosingControls(entries, snapshot.accountingPeriods)
+    };
+    const periodSlug = [from || "debut", to || "fin"].join("_");
+    const saved = await saveTextFile({
+      name: `etats-financiers-${periodSlug}.json`,
+      content: JSON.stringify(exportBody, null, 2),
+      mimeType: "application/json; charset=utf-8"
+    });
+
+    if (!saved.ok) {
+      await failJob(job.id, saved.error || "Export impossible");
+      return;
+    }
+
+    await completeJob(job.id, {
+      fileId: saved.file.id,
+      fileName: saved.file.name,
+      path: saved.file.path,
+      generatedAt
+    });
+  } catch (error) {
+    await failJob(job.id, error.message);
+  }
 }
 
 async function readJson(request) {

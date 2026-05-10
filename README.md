@@ -64,6 +64,7 @@ Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `n
 - Protection des routes d'ecriture sensibles par role
 - File de jobs simple pour preparer imports et generations longues
 - Stockage local de fichiers texte, pret a etre remplace par un stockage S3-compatible
+- Worker local pour generer des exports financiers serveur et les historiser
 
 ## Acces de demonstration
 
@@ -86,6 +87,8 @@ Mot de passe: admin12345
 - `POST /api/jobs`
 - `GET /api/files`
 - `POST /api/files/text`
+- `GET /api/files/:id/content`
+- `POST /api/reports/export`
 - `GET /api/company`
 - `PUT /api/company`
 - `GET /api/accounts`
@@ -124,4 +127,4 @@ Le suivi detaille est dans `docs/phase-2-status.md`.
 
 ## Prochaine priorite
 
-Brancher un worker de jobs pour les imports et exports longs, puis preparer la migration PostgreSQL.
+Preparer la migration PostgreSQL et isoler les donnees par organisation sur les modules metier.

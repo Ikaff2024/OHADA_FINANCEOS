@@ -24,6 +24,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Exports CSV/XLS cote navigateur.
 - File de jobs simple pour preparer les imports et traitements longs.
 - Stockage local de fichiers, isole en tests et pret a etre remplace par S3-compatible.
+- Worker local qui traite les jobs d'export financier et produit un fichier JSON telechargeable.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.
 
 ## Partiellement fait
@@ -32,8 +33,8 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
 - Base de donnees: SQLite solide pour MVP local, PostgreSQL reste a brancher avant de viser une exploitation multi-clients.
 - Auth: le flux de connexion et l'administration des roles sont disponibles; il reste les invitations email et la reinitialisation de mot de passe.
-- Jobs: file persistante disponible, mais pas encore de worker asynchrone.
-- Exports: exports locaux disponibles, mais pas encore de generation serveur historisee.
+- Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
+- Exports: exports navigateur et generation serveur historisee disponibles.
 
 ## Reste a faire pour finir la phase 2
 
@@ -42,5 +43,5 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Ajouter la notion d'organisation dans les ecritures et donnees metier pour preparer le vrai multi-tenant.
 - Introduire PostgreSQL avec migrations reproductibles.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
-- Ajouter un worker de jobs pour imports lourds, generation d'etats et exports.
+- Etendre le worker aux imports lourds et aux exports XLS/PDF.
 - Formaliser les variables d'environnement et un guide de deploiement Render/Fly/Railway/VPS.
