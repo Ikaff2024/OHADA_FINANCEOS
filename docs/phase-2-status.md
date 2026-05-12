@@ -12,6 +12,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Persistance SQLite locale avec schemas explicites et seed de demonstration.
 - Authentification email/mot de passe avec hash `scrypt` et sessions bearer.
 - Ecran de connexion frontend, session conservee dans le navigateur et bouton de deconnexion.
+- Invitations utilisateurs et reinitialisation de mot de passe par lien/token.
 - Organisation de demonstration creee automatiquement depuis l'entreprise.
 - Creation d'organisations/dossiers depuis l'API et l'interface avec societe, exercice et proprietaire initial.
 - Utilisateurs avec roles `owner`, `admin`, `accountant`, `viewer`.
@@ -42,13 +43,13 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
 - Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, adapter runtime PostgreSQL reste a brancher.
-- Auth: le flux de connexion et l'administration des roles sont disponibles; il reste les invitations email et la reinitialisation de mot de passe.
+- Auth: le flux de connexion, les invitations par lien et la reinitialisation par lien sont disponibles; il reste l'envoi email transactionnel.
 - Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
 - Exports: exports navigateur et generation serveur historisee disponibles.
 
 ## Reste a faire pour finir la phase 2
 
-- Ajouter les invitations email et la reinitialisation de mot de passe.
+- Brancher l'envoi email transactionnel pour les invitations et la reinitialisation de mot de passe.
 - Ajouter un switcher d'organisation et un parcours d'invitation pour les utilisateurs rattaches a plusieurs dossiers.
 - Introduire PostgreSQL avec migrations reproductibles.
 - Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.

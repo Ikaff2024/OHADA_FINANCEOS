@@ -102,6 +102,12 @@ body[data-auth="locked"] .auth-gate {
   gap: 14px;
 }
 
+.compact-auth-form {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .auth-form .btn {
   width: 100%;
 }

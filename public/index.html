@@ -31,6 +31,22 @@
           <button class="btn btn-primary" type="submit">Se connecter</button>
           <div class="message" id="login-message"></div>
         </form>
+        <form id="password-reset-request-form" class="auth-form compact-auth-form">
+          <label>
+            Email de recuperation
+            <input name="email" type="email" autocomplete="email" placeholder="vous@entreprise.ci" />
+          </label>
+          <button class="btn" type="submit">Preparer un lien de reinitialisation</button>
+          <div class="message" id="password-reset-request-message"></div>
+        </form>
+        <form id="token-password-form" class="auth-form compact-auth-form" hidden>
+          <label>
+            Nouveau mot de passe
+            <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <button class="btn btn-primary" type="submit" id="token-password-submit">Valider</button>
+          <div class="message" id="token-password-message"></div>
+        </form>
       </div>
     </section>
 
@@ -918,6 +934,33 @@
               </div>
             </form>
             <div class="message" id="user-message"></div>
+            <form id="invite-form" class="user-form">
+              <div class="form-row">
+                <label>
+                  Nom invite
+                  <input name="name" type="text" placeholder="Ex: Koffi Auditeur" required />
+                </label>
+                <label>
+                  Email invite
+                  <input name="email" type="email" placeholder="audit@entreprise.ci" required />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  Role
+                  <select name="role">
+                    <option value="viewer">Lecture seule</option>
+                    <option value="accountant">Comptable</option>
+                    <option value="admin">Administrateur</option>
+                    <option value="owner">Proprietaire</option>
+                  </select>
+                </label>
+                <div class="form-actions inline-actions">
+                  <button type="submit" class="btn">Generer invitation</button>
+                </div>
+              </div>
+            </form>
+            <div class="message" id="invite-message"></div>
             <div class="table-wrap">
               <table>
                 <thead>

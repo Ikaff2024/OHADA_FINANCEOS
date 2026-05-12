@@ -63,6 +63,8 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Journal d'audit des actions sensibles
 - Authentification email/mot de passe avec sessions bearer
 - Ecran de connexion et session conservee cote navigateur
+- Invitations utilisateurs par lien/token
+- Reinitialisation de mot de passe par lien/token
 - Utilisateurs, roles et organisation de demonstration
 - Administration des utilisateurs et roles dans l'interface
 - Creation de nouveaux dossiers/organisations avec societe, exercice et proprietaire initial
@@ -89,11 +91,15 @@ Mot de passe: admin12345
 - `GET /api/health`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
+- `POST /api/auth/invitations/accept`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/confirm`
 - `GET /api/auth/me`
 - `GET /api/organizations`
 - `POST /api/organizations`
 - `GET /api/users`
 - `POST /api/users`
+- `POST /api/users/invitations`
 - `PATCH /api/users/:id`
 - `GET /api/jobs`
 - `POST /api/jobs`

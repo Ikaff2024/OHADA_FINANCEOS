@@ -163,6 +163,58 @@ try {
   assert.equal(users.status, 200);
   assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local" && user.name === "Comptable Demo Senior"), true);
 
+  const inviteUser = await fetch(`http://localhost:${port}/api/users/invitations`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      email: "invite.demo@ohada.local",
+      name: "Invite Demo",
+      role: "viewer"
+    })
+  });
+  assert.equal(inviteUser.status, 201);
+  const inviteUserBody = await inviteUser.json();
+  assert.equal(inviteUserBody.user.status, "disabled");
+  assert.equal(typeof inviteUserBody.invitation.token, "string");
+
+  const acceptInvitation = await fetch(`http://localhost:${port}/api/auth/invitations/accept`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: inviteUserBody.invitation.token, password: "invite12345" })
+  });
+  assert.equal(acceptInvitation.status, 200);
+  assert.equal((await acceptInvitation.json()).user.status, "active");
+
+  const invitedLogin = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "invite.demo@ohada.local", password: "invite12345" })
+  });
+  assert.equal(invitedLogin.status, 200);
+
+  const resetRequest = await fetch(`http://localhost:${port}/api/auth/password-reset/request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "invite.demo@ohada.local" })
+  });
+  assert.equal(resetRequest.status, 200);
+  const resetRequestBody = await resetRequest.json();
+  assert.equal(typeof resetRequestBody.reset.token, "string");
+
+  const resetPassword = await fetch(`http://localhost:${port}/api/auth/password-reset/confirm`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: resetRequestBody.reset.token, password: "invite67890" })
+  });
+  assert.equal(resetPassword.status, 200);
+
+  const resetLogin = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "invite.demo@ohada.local", password: "invite67890" })
+  });
+  assert.equal(resetLogin.status, 200);
+
   const createJournal = await fetch(`http://localhost:${port}/api/journals`, {
     method: "POST",
     headers: authHeaders,

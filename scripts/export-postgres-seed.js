@@ -8,6 +8,7 @@ const outputPath = resolve(rootDir, process.argv[2] || "data/postgres-seed.sql")
 const tables = [
   "organizations",
   "users",
+  "auth_tokens",
   "companies",
   "accounting_periods",
   "auxiliary_accounts",

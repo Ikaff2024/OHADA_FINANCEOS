@@ -245,6 +245,113 @@ export async function addUser(input) {
   return { ok: true, user: publicUser(user) };
 }
 
+export async function inviteUser(input) {
+  const db = await getDatabase();
+  const organizationId = String(input.organizationId || seed.company.id).trim();
+  const organization = readOrganization(db, organizationId);
+  if (!organization) return { ok: false, status: 422, error: "Organisation introuvable." };
+
+  const user = {
+    id: crypto.randomUUID(),
+    email: normalizeEmail(input.email),
+    name: String(input.name || "").trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : "viewer",
+    organizationId,
+    passwordHash: hashPassword(crypto.randomUUID()),
+    status: "disabled",
+    createdAt: new Date().toISOString()
+  };
+  const errors = validateUserIdentity(user);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+  if (readUserByEmail(db, user.email)) return { ok: false, status: 409, error: "Cet email existe deja." };
+
+  let invitation;
+  withTransaction(db, () => {
+    insertUser(db, user);
+    invitation = createAuthToken(db, user, "invitation", 7 * 24);
+    insertAuditEvent(db, {
+      organizationId,
+      action: "user.invite",
+      entityType: "user",
+      entityId: user.id,
+      summary: `Invitation utilisateur: ${user.email}`,
+      details: { user: publicUser(user), expiresAt: invitation.expiresAt }
+    });
+  });
+
+  return { ok: true, user: publicUser(user), invitation };
+}
+
+export async function acceptInvitation(input) {
+  const db = await getDatabase();
+  const token = readValidAuthToken(db, input.token, "invitation");
+  if (!token) return { ok: false, status: 422, error: "Invitation invalide ou expiree." };
+  const user = readUserById(db, token.userId);
+  if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+  const errors = validatePassword(input.password);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  withTransaction(db, () => {
+    db.prepare("UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?").run(hashPassword(input.password), user.id);
+    consumeAuthToken(db, token.id);
+    insertAuditEvent(db, {
+      organizationId: user.organizationId,
+      action: "user.accept_invitation",
+      entityType: "user",
+      entityId: user.id,
+      summary: `Invitation acceptee: ${user.email}`,
+      details: { userId: user.id }
+    });
+  });
+
+  return { ok: true, user: publicUser(readUserById(db, user.id)) };
+}
+
+export async function requestPasswordReset(input) {
+  const db = await getDatabase();
+  const user = readUserByEmail(db, normalizeEmail(input.email));
+  if (!user || user.status !== "active") {
+    return { ok: true, message: "Si le compte existe, un lien de reinitialisation est prepare." };
+  }
+
+  const reset = createAuthToken(db, user, "password_reset", 2);
+  insertAuditEvent(db, {
+    organizationId: user.organizationId,
+    action: "user.password_reset_request",
+    entityType: "user",
+    entityId: user.id,
+    summary: `Reinitialisation demandee: ${user.email}`,
+    details: { expiresAt: reset.expiresAt }
+  });
+  return { ok: true, message: "Lien de reinitialisation prepare.", reset };
+}
+
+export async function resetPassword(input) {
+  const db = await getDatabase();
+  const token = readValidAuthToken(db, input.token, "password_reset");
+  if (!token) return { ok: false, status: 422, error: "Lien de reinitialisation invalide ou expire." };
+  const user = readUserById(db, token.userId);
+  if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+  const errors = validatePassword(input.password);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  withTransaction(db, () => {
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(input.password), user.id);
+    db.prepare("DELETE FROM auth_sessions WHERE user_id = ?").run(user.id);
+    consumeAuthToken(db, token.id);
+    insertAuditEvent(db, {
+      organizationId: user.organizationId,
+      action: "user.password_reset",
+      entityType: "user",
+      entityId: user.id,
+      summary: `Mot de passe reinitialise: ${user.email}`,
+      details: { userId: user.id }
+    });
+  });
+
+  return { ok: true };
+}
+
 export async function updateUser(userId, input, actor) {
   const db = await getDatabase();
   const current = readUserById(db, userId);
@@ -970,6 +1077,17 @@ function createSchema(db) {
       expires_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS auth_tokens (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(id),
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL CHECK(type IN ('invitation', 'password_reset')),
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS journal_entries (
       id TEXT PRIMARY KEY,
       organization_id TEXT,
@@ -1120,6 +1238,8 @@ function createSchema(db) {
 
     CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_tokens_token_hash ON auth_tokens(token_hash);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_created_at ON journal_entries(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_batch_id ON journal_entries(batch_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_bank_fingerprint ON journal_entries(bank_fingerprint);
@@ -1320,6 +1440,46 @@ function readOwnerCount(db, organizationId) {
   `).get(organizationId).count);
 }
 
+function createAuthToken(db, user, type, ttlHours) {
+  const token = createSessionToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000).toISOString();
+  const record = {
+    id: crypto.randomUUID(),
+    organizationId: user.organizationId,
+    userId: user.id,
+    type,
+    token,
+    tokenHash: hashToken(token),
+    createdAt: now.toISOString(),
+    expiresAt
+  };
+  db.prepare(`
+    INSERT INTO auth_tokens
+    (id, organization_id, user_id, type, token_hash, created_at, expires_at, used_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+  `).run(record.id, record.organizationId, record.userId, record.type, record.tokenHash, record.createdAt, record.expiresAt);
+  return {
+    token,
+    expiresAt,
+    url: `/?${type === "invitation" ? "invite" : "reset"}=${encodeURIComponent(token)}`
+  };
+}
+
+function readValidAuthToken(db, token, type) {
+  const row = db.prepare(`
+    SELECT *
+    FROM auth_tokens
+    WHERE token_hash = ? AND type = ? AND used_at IS NULL AND expires_at > ?
+    LIMIT 1
+  `).get(hashToken(token), type, new Date().toISOString());
+  return row ? mapAuthToken(row) : null;
+}
+
+function consumeAuthToken(db, tokenId) {
+  db.prepare("UPDATE auth_tokens SET used_at = ? WHERE id = ?").run(new Date().toISOString(), tokenId);
+}
+
 function readPeriods(db, organizationId = defaultOrganizationId) {
   return db.prepare(`
     SELECT * FROM accounting_periods
@@ -1434,9 +1594,18 @@ function validatePeriod(db, period) {
 }
 
 function validateUser(user, password) {
+  return [...validateUserIdentity(user), ...validatePassword(password)];
+}
+
+function validateUserIdentity(user) {
   const errors = [];
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) errors.push("Email invalide.");
   if (user.name.length < 2) errors.push("Le nom utilisateur est obligatoire.");
+  return errors;
+}
+
+function validatePassword(password) {
+  const errors = [];
   if (String(password || "").length < 8) errors.push("Le mot de passe doit contenir au moins 8 caracteres.");
   return errors;
 }
@@ -2100,6 +2269,19 @@ function mapUser(row) {
     role: row.role,
     status: row.status,
     createdAt: row.created_at
+  };
+}
+
+function mapAuthToken(row) {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    userId: row.user_id,
+    type: row.type,
+    tokenHash: row.token_hash,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at ?? undefined
   };
 }
 

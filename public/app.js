@@ -116,6 +116,8 @@ const journalsTableEl = document.querySelector("#journals-table");
 const journalsCountEl = document.querySelector("#journals-count");
 const userForm = document.querySelector("#user-form");
 const userMessageEl = document.querySelector("#user-message");
+const inviteForm = document.querySelector("#invite-form");
+const inviteMessageEl = document.querySelector("#invite-message");
 const usersTableEl = document.querySelector("#users-table");
 const usersCountEl = document.querySelector("#users-count");
 const autoBalanceEl = document.querySelector("#auto-balance");
@@ -128,12 +130,19 @@ const saveEntryButton = document.querySelector("#save-entry");
 const authGateEl = document.querySelector("#auth-gate");
 const loginForm = document.querySelector("#login-form");
 const loginMessageEl = document.querySelector("#login-message");
+const passwordResetRequestForm = document.querySelector("#password-reset-request-form");
+const passwordResetRequestMessageEl = document.querySelector("#password-reset-request-message");
+const tokenPasswordForm = document.querySelector("#token-password-form");
+const tokenPasswordSubmitButton = document.querySelector("#token-password-submit");
+const tokenPasswordMessageEl = document.querySelector("#token-password-message");
 const logoutButton = document.querySelector("#logout-button");
 const userAvatarEl = document.querySelector("#user-avatar");
 const userNameEl = document.querySelector("#user-name");
 const userRoleEl = document.querySelector("#user-role");
 let isBalancingEntry = false;
 let editingEntryId = "";
+let authTokenMode = "";
+let authTokenValue = "";
 
 document.querySelector("#add-line").addEventListener("click", () => {
   addLine();
@@ -189,7 +198,10 @@ auditActionFilterEl.addEventListener("change", renderAuditEvents);
 form.addEventListener("submit", submitEntry);
 auxiliaryForm.addEventListener("submit", submitAuxiliaryAccount);
 userForm.addEventListener("submit", submitUser);
+inviteForm.addEventListener("submit", submitInvitation);
 loginForm.addEventListener("submit", submitLogin);
+passwordResetRequestForm.addEventListener("submit", submitPasswordResetRequest);
+tokenPasswordForm.addEventListener("submit", submitTokenPassword);
 logoutButton.addEventListener("click", logout);
 document.querySelectorAll("[data-view-target]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
@@ -257,12 +269,33 @@ await boot();
 
 async function boot() {
   setUiTheme(localStorage.getItem("ohada-ui-theme") || "classic", false);
+  detectAuthTokenFlow();
   const hasSession = await restoreSession();
   if (!hasSession) {
     showLogin();
     return;
   }
   await loadApplication();
+}
+
+function detectAuthTokenFlow() {
+  const params = new URLSearchParams(window.location.search);
+  const invite = params.get("invite");
+  const reset = params.get("reset");
+  if (invite) {
+    authTokenMode = "invitation";
+    authTokenValue = invite;
+    tokenPasswordSubmitButton.textContent = "Activer mon compte";
+    tokenPasswordForm.hidden = false;
+    setTokenPasswordMessage("Choisissez votre mot de passe pour accepter l'invitation.");
+  }
+  if (reset) {
+    authTokenMode = "password_reset";
+    authTokenValue = reset;
+    tokenPasswordSubmitButton.textContent = "Reinitialiser le mot de passe";
+    tokenPasswordForm.hidden = false;
+    setTokenPasswordMessage("Saisissez votre nouveau mot de passe.");
+  }
 }
 
 async function loadApplication() {
@@ -345,6 +378,47 @@ async function submitLogin(event) {
   await loadApplication();
 }
 
+async function submitPasswordResetRequest(event) {
+  event.preventDefault();
+  setPasswordResetRequestMessage("Preparation du lien...");
+  const response = await nativeFetch("/api/auth/password-reset/request", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: passwordResetRequestForm.elements.email.value })
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    setPasswordResetRequestMessage(body.error || "Demande impossible.", true);
+    return;
+  }
+  const link = body.reset?.url ? `${window.location.origin}${body.reset.url}` : "";
+  setPasswordResetRequestMessage(link ? `Lien genere: ${link}` : body.message);
+}
+
+async function submitTokenPassword(event) {
+  event.preventDefault();
+  const password = tokenPasswordForm.elements.password.value;
+  const endpoint = authTokenMode === "invitation"
+    ? "/api/auth/invitations/accept"
+    : "/api/auth/password-reset/confirm";
+  setTokenPasswordMessage("Validation en cours...");
+  const response = await nativeFetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: authTokenValue, password })
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    setTokenPasswordMessage(body.errors?.join(" ") ?? body.error ?? "Lien invalide.", true);
+    return;
+  }
+  tokenPasswordForm.reset();
+  tokenPasswordForm.hidden = true;
+  setTokenPasswordMessage("");
+  setLoginMessage(authTokenMode === "invitation" ? "Compte active. Vous pouvez vous connecter." : "Mot de passe reinitialise. Vous pouvez vous connecter.");
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
 async function logout() {
   try {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -389,6 +463,16 @@ function renderUser() {
 function setLoginMessage(text, isError = false) {
   loginMessageEl.textContent = text;
   loginMessageEl.classList.toggle("error", isError);
+}
+
+function setPasswordResetRequestMessage(text, isError = false) {
+  passwordResetRequestMessageEl.textContent = text;
+  passwordResetRequestMessageEl.classList.toggle("error", isError);
+}
+
+function setTokenPasswordMessage(text, isError = false) {
+  tokenPasswordMessageEl.textContent = text;
+  tokenPasswordMessageEl.classList.toggle("error", isError);
 }
 
 function isApiRequest(url) {
@@ -822,6 +906,39 @@ async function submitUser(event) {
   userForm.reset();
   userForm.elements.role.value = "accountant";
   setUserMessage("Utilisateur cree.");
+  state.users = await fetchUsersForRole();
+  renderUsers();
+}
+
+async function submitInvitation(event) {
+  event.preventDefault();
+  if (!canManageUsers()) {
+    setInviteMessage("Droits administrateur requis.", true);
+    return;
+  }
+
+  setInviteMessage("Generation de l'invitation...");
+  const payload = {
+    name: inviteForm.elements.name.value,
+    email: inviteForm.elements.email.value,
+    role: inviteForm.elements.role.value
+  };
+
+  const response = await fetch("/api/users/invitations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const body = await response.json();
+
+  if (!response.ok) {
+    setInviteMessage(body.errors?.join(" ") ?? body.error ?? "Invitation refusee.", true);
+    return;
+  }
+
+  inviteForm.reset();
+  const link = `${window.location.origin}${body.invitation.url}`;
+  setInviteMessage(`Invitation generee: ${link}`);
   state.users = await fetchUsersForRole();
   renderUsers();
 }
@@ -1746,7 +1863,11 @@ function filteredLetteringRows() {
 function renderUsers() {
   const canManage = canManageUsers();
   userForm.classList.toggle("is-disabled", !canManage);
+  inviteForm.classList.toggle("is-disabled", !canManage);
   [...userForm.elements].forEach((element) => {
+    element.disabled = !canManage;
+  });
+  [...inviteForm.elements].forEach((element) => {
     element.disabled = !canManage;
   });
 
@@ -2513,6 +2634,11 @@ function setAccountMessage(text, isError = false) {
 function setUserMessage(text, isError = false) {
   userMessageEl.textContent = text;
   userMessageEl.classList.toggle("error", isError);
+}
+
+function setInviteMessage(text, isError = false) {
+  inviteMessageEl.textContent = text;
+  inviteMessageEl.classList.toggle("error", isError);
 }
 
 function setOrganizationMessage(text, isError = false) {

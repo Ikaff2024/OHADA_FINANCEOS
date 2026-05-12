@@ -33,6 +33,7 @@ import {
   addAutomaticLettering,
   addManualLettering,
   addSubscriptionBatch,
+  acceptInvitation,
   claimNextJob,
   completeJob,
   deleteJournalEntry,
@@ -40,6 +41,7 @@ import {
   failJob,
   loginUser,
   logoutUser,
+  inviteUser,
   readAuthContext,
   readAccounts,
   readDb,
@@ -50,6 +52,8 @@ import {
   readStoredFileContent,
   readStoredFiles,
   readUsers,
+  requestPasswordReset,
+  resetPassword,
   saveTextFile,
   setAccountingPeriodStatus,
   updateJournalEntry,
@@ -105,6 +109,24 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/auth/invitations/accept") {
+    const result = await acceptInvitation(await readJson(request));
+    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/password-reset/request") {
+    const result = await requestPasswordReset(await readJson(request));
+    sendJson(response, 200, result);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/auth/password-reset/confirm") {
+    const result = await resetPassword(await readJson(request));
+    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/auth/me") {
     const auth = await readAuthContext(bearerToken(request));
     sendJson(response, auth ? 200 : 401, auth ?? { error: "Non authentifie." });
@@ -140,6 +162,14 @@ async function handleApi(request, response, url) {
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return;
     const result = await addUser({ ...(await readJson(request)), organizationId });
+    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/users/invitations") {
+    const auth = await requireRole(request, response, ["owner", "admin"]);
+    if (!auth) return;
+    const result = await inviteUser({ ...(await readJson(request)), organizationId });
     sendJson(response, result.ok ? 201 : result.status ?? 422, result);
     return;
   }
