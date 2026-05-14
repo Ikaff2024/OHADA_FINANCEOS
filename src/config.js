@@ -15,6 +15,7 @@ export const config = {
 };
 
 export const publicConfig = {
-  databaseMode: config.databaseUrl ? "postgres-ready" : "sqlite",
+  runtimeDatabase: "sqlite",
+  postgresConfigured: Boolean(config.databaseUrl),
   storageMode: process.env.OHADA_STORAGE_DIR ? "local-configured" : "local-default"
 };

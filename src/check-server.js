@@ -29,6 +29,15 @@ try {
 
   const health = await fetchJson(`http://localhost:${port}/api/health`);
   assert.equal(health.ok, true);
+  assert.equal(health.config.runtimeDatabase, "sqlite");
+  assert.equal(health.config.postgresConfigured, false);
+  assert.equal(health.database.runtime, "sqlite");
+  assert.equal(health.database.sqlite.ok, true);
+  assert.equal(health.database.postgres.configured, false);
+
+  const databaseHealth = await fetchJson(`http://localhost:${port}/api/health/database`);
+  assert.equal(databaseHealth.ok, true);
+  assert.equal(databaseHealth.database.sqlite.ok, true);
 
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);

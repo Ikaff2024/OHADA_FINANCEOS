@@ -62,6 +62,7 @@ import {
   voidBankImportBatch
 } from "./store.js";
 import { config, publicConfig, rootDir } from "./config.js";
+import { databaseHealth } from "./databaseHealth.js";
 import { buildSubscriptionEntries } from "./subscriptions.js";
 
 const publicDir = join(rootDir, "public");
@@ -93,7 +94,18 @@ setInterval(() => {
 
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, service: "ohada-financeos-mvp", config: publicConfig });
+    sendJson(response, 200, {
+      ok: true,
+      service: "ohada-financeos-mvp",
+      config: publicConfig,
+      database: await databaseHealth()
+    });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/health/database") {
+    const database = await databaseHealth({ checkPostgres: url.searchParams.get("checkPostgres") === "1" });
+    sendJson(response, database.sqlite.ok ? 200 : 503, { ok: database.sqlite.ok, database });
     return;
   }
 

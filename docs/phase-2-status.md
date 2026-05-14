@@ -36,6 +36,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Migrations PostgreSQL versionnees disponibles avec `npm.cmd run db:migrate:pg`.
 - Export SQL SQLite vers PostgreSQL disponible avec `npm.cmd run db:pg:dump`.
 - Import du seed PostgreSQL disponible avec `npm.cmd run db:pg:seed` et setup complet avec `npm.cmd run db:pg:setup`.
+- Healthcheck base de donnees indiquant le runtime SQLite et la disponibilite PostgreSQL optionnelle.
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
 - Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.
@@ -44,7 +45,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
-- Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, adapter runtime PostgreSQL reste a brancher.
+- Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, healthcheck de transition disponible, adapter runtime PostgreSQL reste a brancher.
 - Auth: le flux de connexion, les invitations par lien et la reinitialisation par lien sont disponibles; il reste l'envoi email transactionnel.
 - Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
 - Exports: exports navigateur et generation serveur historisee disponibles.

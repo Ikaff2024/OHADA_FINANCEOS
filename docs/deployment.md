@@ -49,6 +49,12 @@ Pour migrer puis charger le seed en une commande:
 npm.cmd run db:pg:setup
 ```
 
+Verifier le runtime et la disponibilite PostgreSQL:
+
+```bash
+curl http://localhost:3050/api/health/database?checkPostgres=1
+```
+
 5. Brancher l'adapter runtime PostgreSQL dans l'application.
 6. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 7. Remplacer ensuite le stockage local par un service S3-compatible.
