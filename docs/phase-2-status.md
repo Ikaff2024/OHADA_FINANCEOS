@@ -33,6 +33,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Worker local qui traite les jobs d'export financier et produit un fichier JSON telechargeable.
 - Configuration centralisee par variables d'environnement avec `.env.example`.
 - Schema PostgreSQL cible disponible dans `db/postgres/schema.sql`.
+- Migrations PostgreSQL versionnees disponibles avec `npm.cmd run db:migrate:pg`.
 - Export SQL SQLite vers PostgreSQL disponible avec `npm.cmd run db:pg:dump`.
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
 - Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
@@ -51,7 +52,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 
 - Brancher l'envoi email transactionnel pour les invitations et la reinitialisation de mot de passe.
 - Ajouter un switcher d'organisation et un parcours d'invitation pour les utilisateurs rattaches a plusieurs dossiers.
-- Introduire PostgreSQL avec migrations reproductibles.
+- Appliquer les migrations PostgreSQL sur l'environnement cible.
 - Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.
