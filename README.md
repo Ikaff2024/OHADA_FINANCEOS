@@ -78,6 +78,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Migrations PostgreSQL versionnees avec `npm.cmd run db:migrate:pg`
 - Export SQL des donnees SQLite vers PostgreSQL avec `npm.cmd run db:pg:dump`
 - Import du seed PostgreSQL avec `npm.cmd run db:pg:seed` ou setup complet avec `npm.cmd run db:pg:setup`
+- Premier module d'adapter runtime PostgreSQL avec transactions et verification `npm.cmd run db:pg:check`
 - Healthcheck base de donnees avec runtime SQLite explicite et verification PostgreSQL optionnelle
 - Colonnes `organization_id` sur les tables metier pour preparer l'isolation multi-entreprise
 - Contexte organisation applique aux lectures et ecritures API authentifiees

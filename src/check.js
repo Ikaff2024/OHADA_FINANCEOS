@@ -15,6 +15,7 @@ import {
   sampleBankCsv,
   transactionsToJournalEntries
 } from "./bankImport.js";
+import { toPostgresQuery } from "./postgresRuntime.js";
 
 const validEntry = {
   date: "2026-02-01",
@@ -99,5 +100,9 @@ const importedEntries = transactionsToJournalEntries([preview.transactions[0]]);
 const duplicatePreview = previewBankCsv(sampleBankCsv(), [], journalEntryFingerprints(importedEntries));
 assert.equal(duplicatePreview.transactions[0].duplicate, true);
 assert.equal(duplicatePreview.transactions[1].duplicate, false);
+
+assert.equal(toPostgresQuery("SELECT * FROM users WHERE email = ? AND status = ?").text, "SELECT * FROM users WHERE email = $1 AND status = $2");
+assert.equal(toPostgresQuery("SELECT '?' AS literal, ? AS value -- ? in comment").text, "SELECT '?' AS literal, $1 AS value -- ? in comment");
+assert.equal(toPostgresQuery("SELECT $$?$$ AS body, ? AS value").text, "SELECT $$?$$ AS body, $1 AS value");
 
 console.log("Checks MVP OK");

@@ -1,22 +1,21 @@
-import { Client } from "pg";
-import { config } from "../src/config.js";
+import {
+  createPostgresClient as createRuntimePostgresClient,
+  postgresSslConfig,
+  requirePostgresUrl
+} from "../src/postgresRuntime.js";
 
 export function requireDatabaseUrl() {
-  if (!config.databaseUrl) {
+  try {
+    return requirePostgresUrl();
+  } catch {
     console.error("DATABASE_URL est obligatoire pour cette commande PostgreSQL.");
     process.exit(1);
   }
-  return config.databaseUrl;
 }
 
 export function createPostgresClient() {
-  return new Client({
-    connectionString: requireDatabaseUrl(),
-    ssl: postgresSslConfig()
-  });
+  requireDatabaseUrl();
+  return createRuntimePostgresClient();
 }
 
-export function postgresSslConfig() {
-  if (process.env.PGSSLMODE === "disable" || process.env.PGSSL === "false") return false;
-  return { rejectUnauthorized: false };
-}
+export { postgresSslConfig };

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
-import { Client } from "pg";
 import { config, publicConfig } from "./config.js";
+import { createPostgresClient } from "./postgresRuntime.js";
 
 export async function databaseHealth({ checkPostgres = false } = {}) {
   const sqlite = await sqliteHealth();
@@ -58,10 +58,7 @@ async function postgresHealth(checkPostgres) {
     };
   }
 
-  const client = new Client({
-    connectionString: config.databaseUrl,
-    ssl: postgresSslConfig()
-  });
+  const client = createPostgresClient();
 
   try {
     await client.connect();
@@ -81,9 +78,4 @@ async function postgresHealth(checkPostgres) {
   } finally {
     await client.end().catch(() => {});
   }
-}
-
-function postgresSslConfig() {
-  if (process.env.PGSSLMODE === "disable" || process.env.PGSSL === "false") return false;
-  return { rejectUnauthorized: false };
 }
