@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { normalizeJournalEntry } from "./accounting.js";
 import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
 import { config, rootDir } from "./config.js";
+import * as postgresStore from "./postgresStore.js";
 import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
 
 const legacyJsonPath = join(rootDir, "data", "db.json");
@@ -75,12 +76,18 @@ const seed = {
 
 let database;
 
+function usePostgresRuntime() {
+  return config.runtimeDatabase === "postgres";
+}
+
 export async function readDb(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readDb(organizationId);
   const db = await getDatabase();
   return readSnapshot(db, organizationId);
 }
 
 export async function loginUser(input) {
+  if (usePostgresRuntime()) return postgresStore.loginUser(input, config.sessionTtlHours);
   const db = await getDatabase();
   const email = normalizeEmail(input.email);
   const password = String(input.password || "");
@@ -108,12 +115,14 @@ export async function loginUser(input) {
 }
 
 export async function logoutUser(token) {
+  if (usePostgresRuntime()) return postgresStore.logoutUser(token);
   const db = await getDatabase();
   db.prepare("DELETE FROM auth_sessions WHERE token_hash = ?").run(hashToken(token));
   return { ok: true };
 }
 
 export async function readAuthContext(token) {
+  if (usePostgresRuntime()) return postgresStore.readAuthContext(token);
   if (!token) return null;
   const db = await getDatabase();
   const row = db.prepare(`
@@ -133,6 +142,7 @@ export async function readAuthContext(token) {
 }
 
 export async function readOrganizations() {
+  if (usePostgresRuntime()) return postgresStore.readOrganizations();
   const db = await getDatabase();
   return readAllOrganizations(db);
 }
@@ -212,6 +222,7 @@ export async function addOrganization(input) {
 }
 
 export async function readUsers(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readUsers(organizationId);
   const db = await getDatabase();
   return readAllUsers(db, organizationId).map(publicUser);
 }
@@ -407,6 +418,7 @@ export async function enqueueJob(input) {
 }
 
 export async function readJobs(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readJobs(organizationId);
   const db = await getDatabase();
   return db.prepare(`
     SELECT *
@@ -500,6 +512,7 @@ export async function readStoredFileContent(fileId, organizationId = defaultOrga
 }
 
 export async function readStoredFiles(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readStoredFiles(organizationId);
   const db = await getDatabase();
   return db.prepare(`
     SELECT *
@@ -511,6 +524,7 @@ export async function readStoredFiles(organizationId = defaultOrganizationId) {
 }
 
 export async function readAccounts(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readAccounts(organizationId);
   const db = await getDatabase();
   return accountCatalog(db, organizationId);
 }
@@ -543,6 +557,7 @@ export async function addCustomAccount(input) {
 }
 
 export async function readJournals(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readJournals(organizationId);
   const db = await getDatabase();
   return readAllJournals(db, organizationId);
 }
@@ -1025,6 +1040,12 @@ export async function setAccountingPeriodStatus(periodId, status, organizationId
 }
 
 async function getDatabase() {
+  if (usePostgresRuntime()) {
+    const error = new Error("Cette operation n'est pas encore branchee sur le runtime PostgreSQL.");
+    error.status = 501;
+    throw error;
+  }
+
   if (database) return database;
 
   await mkdir(dirname(dbPath), { recursive: true });

@@ -5,6 +5,7 @@ export const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export const config = {
   port: Number(process.env.PORT || 3050),
+  runtimeDatabase: process.env.OHADA_DB_RUNTIME === "postgres" ? "postgres" : "sqlite",
   sqlitePath: process.env.OHADA_DB_PATH || join(rootDir, "data", "financeos.sqlite"),
   storageDir: process.env.OHADA_STORAGE_DIR || join(rootDir, "storage", "uploads"),
   defaultAdminEmail: process.env.OHADA_DEFAULT_ADMIN_EMAIL || "admin@demo.ohada",
@@ -15,7 +16,7 @@ export const config = {
 };
 
 export const publicConfig = {
-  runtimeDatabase: "sqlite",
+  runtimeDatabase: config.runtimeDatabase,
   postgresConfigured: Boolean(config.databaseUrl),
   storageMode: process.env.OHADA_STORAGE_DIR ? "local-configured" : "local-default"
 };

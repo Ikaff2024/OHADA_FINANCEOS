@@ -61,7 +61,13 @@ Verifier que l'adapter runtime PostgreSQL sait lire les tables coeur:
 npm.cmd run db:pg:check
 ```
 
-5. Brancher l'adapter runtime PostgreSQL dans l'application.
+Activer le runtime PostgreSQL pour les lectures principales et l'authentification:
+
+```bash
+OHADA_DB_RUNTIME=postgres
+```
+
+5. Brancher les mutations metier restantes sur l'adapter PostgreSQL.
 6. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 7. Remplacer ensuite le stockage local par un service S3-compatible.
 

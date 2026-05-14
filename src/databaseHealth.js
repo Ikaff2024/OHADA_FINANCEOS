@@ -46,7 +46,7 @@ async function postgresHealth(checkPostgres) {
     return {
       configured: false,
       ok: null,
-      runtime: false
+      runtime: publicConfig.runtimeDatabase === "postgres"
     };
   }
 
@@ -54,7 +54,7 @@ async function postgresHealth(checkPostgres) {
     return {
       configured: true,
       ok: null,
-      runtime: false
+      runtime: publicConfig.runtimeDatabase === "postgres"
     };
   }
 
@@ -66,13 +66,13 @@ async function postgresHealth(checkPostgres) {
     return {
       configured: true,
       ok: true,
-      runtime: false
+      runtime: publicConfig.runtimeDatabase === "postgres"
     };
   } catch (error) {
     return {
       configured: true,
       ok: false,
-      runtime: false,
+      runtime: publicConfig.runtimeDatabase === "postgres",
       error: error.message
     };
   } finally {
