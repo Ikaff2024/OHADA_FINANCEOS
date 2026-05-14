@@ -10,7 +10,9 @@
     "check": "node src/check.js",
     "check:e2e": "node src/check-server.js",
     "db:migrate:pg": "node scripts/migrate-postgres.js",
-    "db:pg:dump": "node scripts/export-postgres-seed.js"
+    "db:pg:dump": "node scripts/export-postgres-seed.js",
+    "db:pg:seed": "node scripts/seed-postgres.js",
+    "db:pg:setup": "node scripts/setup-postgres.js"
   },
   "engines": {
     "node": ">=22.13.0"

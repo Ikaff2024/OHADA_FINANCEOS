@@ -1,19 +1,10 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { Client } from "pg";
-import { config, rootDir } from "../src/config.js";
+import { rootDir } from "../src/config.js";
+import { createPostgresClient } from "./postgres-client.js";
 
 const migrationsDir = join(rootDir, "db", "postgres", "migrations");
-
-if (!config.databaseUrl) {
-  console.error("DATABASE_URL est obligatoire pour executer les migrations PostgreSQL.");
-  process.exit(1);
-}
-
-const client = new Client({
-  connectionString: config.databaseUrl,
-  ssl: process.env.PGSSLMODE === "disable" ? false : process.env.PGSSL === "false" ? false : { rejectUnauthorized: false }
-});
+const client = createPostgresClient();
 
 try {
   await client.connect();

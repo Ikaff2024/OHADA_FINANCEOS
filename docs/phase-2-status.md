@@ -35,6 +35,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Schema PostgreSQL cible disponible dans `db/postgres/schema.sql`.
 - Migrations PostgreSQL versionnees disponibles avec `npm.cmd run db:migrate:pg`.
 - Export SQL SQLite vers PostgreSQL disponible avec `npm.cmd run db:pg:dump`.
+- Import du seed PostgreSQL disponible avec `npm.cmd run db:pg:seed` et setup complet avec `npm.cmd run db:pg:setup`.
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
 - Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.

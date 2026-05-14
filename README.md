@@ -77,6 +77,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Schema PostgreSQL cible dans `db/postgres/schema.sql`
 - Migrations PostgreSQL versionnees avec `npm.cmd run db:migrate:pg`
 - Export SQL des donnees SQLite vers PostgreSQL avec `npm.cmd run db:pg:dump`
+- Import du seed PostgreSQL avec `npm.cmd run db:pg:seed` ou setup complet avec `npm.cmd run db:pg:setup`
 - Colonnes `organization_id` sur les tables metier pour preparer l'isolation multi-entreprise
 - Contexte organisation applique aux lectures et ecritures API authentifiees
 

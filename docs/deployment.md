@@ -37,6 +37,18 @@ npm.cmd run db:pg:dump
 
 Le fichier `data/postgres-seed.sql` produit peut ensuite etre applique avec `psql` apres le schema.
 
+Il peut aussi etre applique sans `psql`:
+
+```bash
+npm.cmd run db:pg:seed
+```
+
+Pour migrer puis charger le seed en une commande:
+
+```bash
+npm.cmd run db:pg:setup
+```
+
 5. Brancher l'adapter runtime PostgreSQL dans l'application.
 6. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 7. Remplacer ensuite le stockage local par un service S3-compatible.
