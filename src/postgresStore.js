@@ -1,4 +1,4 @@
-import { buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
+import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
 import { createPostgresRuntime } from "./postgresRuntime.js";
 import { createSessionToken, hashToken, publicUser, verifyPassword } from "./security.js";
 
@@ -79,6 +79,164 @@ export async function readJournals(organizationId = defaultOrganizationId) {
   return readAllJournals(organizationId);
 }
 
+export async function addCustomAccount(input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const account = enrichAccount({
+    code: String(input.code || "").trim(),
+    label: String(input.label || "").trim(),
+    type: String(input.type || "").trim(),
+    source: "custom"
+  });
+  const errors = await validateCustomAccount(account, organizationId);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await insertCustomAccount(tx, { ...account, organizationId, createdAt: new Date().toISOString() });
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "account.create",
+      entityType: "account",
+      entityId: account.code,
+      summary: `Compte cree: ${account.code} - ${account.label}`,
+      details: account
+    });
+  });
+
+  return { ok: true, account: (await accountCatalog(organizationId)).find((candidate) => candidate.code === account.code) };
+}
+
+export async function addJournal(input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const journal = {
+    code: String(input.code || "").trim().toUpperCase(),
+    organizationId,
+    label: String(input.label || "").trim(),
+    type: normalizeJournalType(input.type),
+    status: "active",
+    createdAt: new Date().toISOString()
+  };
+  const errors = await validateJournal(journal);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await insertJournal(tx, journal);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "journal.create_ref",
+      entityType: "journal",
+      entityId: journal.code,
+      summary: `Journal cree: ${journal.code} - ${journal.label}`,
+      details: journal
+    });
+  });
+
+  return { ok: true, journal };
+}
+
+export async function updateCompany(input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const current = await readCompany(organizationId);
+  if (!current) return { ok: false, status: 404, error: "Societe introuvable." };
+
+  const company = {
+    ...current,
+    name: String(input.name || "").trim(),
+    country: String(input.country || "").trim().toUpperCase(),
+    currency: String(input.currency || "").trim().toUpperCase(),
+    fiscalYearStart: String(input.fiscalYearStart || "").trim(),
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+  };
+  const errors = validateCompany(company);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await insertCompany(tx, company);
+    await ensurePeriodForCompany(tx, company);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "company.update",
+      entityType: "company",
+      entityId: company.id,
+      summary: `Parametres entreprise mis a jour: ${company.name}`,
+      details: company
+    });
+  });
+
+  return { ok: true, company: await readCompany(organizationId), accountingPeriods: await readPeriods(organizationId) };
+}
+
+export async function addAuxiliaryAccount(input) {
+  const code = String(input.code || "").trim().toUpperCase();
+  const label = String(input.label || "").trim();
+  const accountCode = String(input.accountCode || "").trim();
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+
+  if (!code || code.length < 2) return { ok: false, status: 422, error: "Le code auxiliaire est obligatoire." };
+  if (!label || label.length < 2) return { ok: false, status: 422, error: "Le libelle auxiliaire est obligatoire." };
+  if (!accountCode) return { ok: false, status: 422, error: "Le compte collectif est obligatoire." };
+  if (!(await accountCatalog(organizationId)).some((account) => account.code === accountCode && account.isPostable)) {
+    return { ok: false, status: 422, error: "Le compte collectif doit etre un compte OHADA a 4 chiffres." };
+  }
+
+  const auxiliary = { code, organizationId, label, accountCode, createdAt: new Date().toISOString() };
+  await pg().transaction(async (tx) => {
+    await insertAuxiliaryAccount(tx, auxiliary);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "auxiliary.create",
+      entityType: "auxiliary_account",
+      entityId: auxiliary.code,
+      summary: `Auxiliaire cree: ${auxiliary.code} - ${auxiliary.label}`,
+      details: auxiliary
+    });
+  });
+  return { ok: true, auxiliary };
+}
+
+export async function addAccountingPeriod(input = {}) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const period = { ...(await buildAccountingPeriod(input)), organizationId };
+  const errors = await validatePeriod(period);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await insertPeriod(tx, period);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "period.create",
+      entityType: "accounting_period",
+      entityId: period.id,
+      summary: `Exercice cree: ${period.name}`,
+      details: period
+    });
+  });
+  return { ok: true, period };
+}
+
+export async function setAccountingPeriodStatus(periodId, status, organizationId = defaultOrganizationId) {
+  const period = await readPeriod(periodId, organizationId);
+  if (!period) return { ok: false, error: "Exercice introuvable." };
+
+  const timestamp = new Date().toISOString();
+  await pg().transaction(async (tx) => {
+    await tx.run(`
+      UPDATE accounting_periods
+      SET status = ?, locked_at = ?, updated_at = ?
+      WHERE id = ? AND organization_id = ?
+    `, [status, status === "locked" ? timestamp : null, timestamp, periodId, organizationId]);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: status === "locked" ? "period.lock" : "period.unlock",
+      entityType: "accounting_period",
+      entityId: periodId,
+      summary: `${status === "locked" ? "Exercice verrouille" : "Exercice rouvert"}: ${period.name}`,
+      details: { before: period, after: await readPeriodWithRuntime(tx, periodId, organizationId) }
+    });
+  });
+
+  return { ok: true, period: await readPeriod(periodId, organizationId) };
+}
+
 async function readSnapshot(organizationId = defaultOrganizationId) {
   const [
     company,
@@ -149,6 +307,15 @@ async function readCompany(organizationId = defaultOrganizationId) {
     fiscalYearStart: dateOnly(row.fiscal_year_start),
     fiscalYearEnd: dateOnly(row.fiscal_year_end)
   };
+}
+
+async function readPeriod(periodId, organizationId = defaultOrganizationId) {
+  return readPeriodWithRuntime(pg(), periodId, organizationId);
+}
+
+async function readPeriodWithRuntime(database, periodId, organizationId = defaultOrganizationId) {
+  const row = await database.one("SELECT * FROM accounting_periods WHERE id = ? AND organization_id = ?", [periodId, organizationId]);
+  return row ? mapPeriod(row) : null;
 }
 
 async function readAllOrganizations() {
@@ -227,6 +394,11 @@ async function readCustomAccounts(organizationId = defaultOrganizationId) {
   `, [organizationId])).map(mapCustomAccount);
 }
 
+async function readCustomAccount(code, organizationId = defaultOrganizationId) {
+  const row = await pg().one("SELECT * FROM custom_accounts WHERE code = ? AND organization_id = ?", [code, organizationId]);
+  return row ? mapCustomAccount(row) : null;
+}
+
 async function readAllJournals(organizationId = defaultOrganizationId) {
   return (await pg().many(`
     SELECT *
@@ -234,6 +406,11 @@ async function readAllJournals(organizationId = defaultOrganizationId) {
     WHERE organization_id = ?
     ORDER BY code ASC
   `, [organizationId])).map(mapJournal);
+}
+
+async function readJournal(code, organizationId = defaultOrganizationId) {
+  const row = await pg().one("SELECT * FROM journals WHERE code = ? AND organization_id = ?", [code, organizationId]);
+  return row ? mapJournal(row) : null;
 }
 
 async function readAuxiliaryAccounts(organizationId = defaultOrganizationId) {
@@ -483,6 +660,257 @@ function mapLetteringGroup(row) {
     mode: row.mode,
     createdAt: isoDateTime(row.created_at)
   };
+}
+
+async function insertCompany(database, company) {
+  await database.run(`
+    INSERT INTO companies
+    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      name = EXCLUDED.name,
+      country = EXCLUDED.country,
+      currency = EXCLUDED.currency,
+      fiscal_year_start = EXCLUDED.fiscal_year_start,
+      fiscal_year_end = EXCLUDED.fiscal_year_end
+  `, [
+    company.id,
+    company.organizationId ?? company.id ?? defaultOrganizationId,
+    company.name,
+    company.country,
+    company.currency,
+    company.fiscalYearStart,
+    company.fiscalYearEnd
+  ]);
+}
+
+async function insertPeriod(database, period) {
+  await database.run(`
+    INSERT INTO accounting_periods
+    (id, organization_id, name, start_date, end_date, status, locked_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      name = EXCLUDED.name,
+      start_date = EXCLUDED.start_date,
+      end_date = EXCLUDED.end_date,
+      status = EXCLUDED.status,
+      locked_at = EXCLUDED.locked_at,
+      updated_at = EXCLUDED.updated_at
+  `, [
+    period.id,
+    period.organizationId ?? defaultOrganizationId,
+    period.name,
+    period.startDate,
+    period.endDate,
+    period.status,
+    period.lockedAt ?? null,
+    period.updatedAt ?? new Date().toISOString()
+  ]);
+}
+
+async function insertAuxiliaryAccount(database, auxiliary) {
+  await database.run(`
+    INSERT INTO auxiliary_accounts
+    (code, organization_id, label, account_code, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (code) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      label = EXCLUDED.label,
+      account_code = EXCLUDED.account_code,
+      created_at = EXCLUDED.created_at
+  `, [
+    auxiliary.code,
+    auxiliary.organizationId ?? defaultOrganizationId,
+    auxiliary.label,
+    auxiliary.accountCode,
+    auxiliary.createdAt ?? new Date().toISOString()
+  ]);
+}
+
+async function insertCustomAccount(database, account) {
+  await database.run(`
+    INSERT INTO custom_accounts
+    (code, organization_id, label, type, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (organization_id, code) DO UPDATE SET
+      label = EXCLUDED.label,
+      type = EXCLUDED.type,
+      created_at = EXCLUDED.created_at
+  `, [
+    account.code,
+    account.organizationId ?? defaultOrganizationId,
+    account.label,
+    account.type,
+    account.createdAt ?? new Date().toISOString()
+  ]);
+}
+
+async function insertJournal(database, journal) {
+  await database.run(`
+    INSERT INTO journals
+    (code, organization_id, label, type, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (organization_id, code) DO UPDATE SET
+      label = EXCLUDED.label,
+      type = EXCLUDED.type,
+      status = EXCLUDED.status,
+      created_at = EXCLUDED.created_at
+  `, [
+    journal.code,
+    journal.organizationId ?? defaultOrganizationId,
+    journal.label,
+    journal.type,
+    journal.status ?? "active",
+    journal.createdAt ?? new Date().toISOString()
+  ]);
+}
+
+async function insertAuditEvent(database, event) {
+  await database.run(`
+    INSERT INTO audit_events
+    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    event.id ?? crypto.randomUUID(),
+    event.organizationId ?? defaultOrganizationId,
+    event.actor ?? "system",
+    event.action,
+    event.entityType,
+    event.entityId,
+    event.summary,
+    JSON.stringify(event.details ?? {}),
+    event.createdAt ?? new Date().toISOString()
+  ]);
+}
+
+async function ensurePeriodForCompany(database, company) {
+  const periodId = periodIdForCompany(company);
+  const organizationId = company.organizationId ?? company.id ?? defaultOrganizationId;
+  const existing = await readPeriodWithRuntime(database, periodId, organizationId);
+  const period = {
+    id: periodId,
+    organizationId,
+    name: `Exercice ${company.fiscalYearStart.slice(0, 4)}`,
+    startDate: company.fiscalYearStart,
+    endDate: company.fiscalYearEnd,
+    status: existing?.status ?? "open",
+    lockedAt: existing?.lockedAt,
+    updatedAt: new Date().toISOString()
+  };
+  await insertPeriod(database, period);
+}
+
+async function buildAccountingPeriod(input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const latest = await pg().one(`
+    SELECT *
+    FROM accounting_periods
+    WHERE organization_id = ?
+    ORDER BY end_date DESC
+    LIMIT 1
+  `, [organizationId]);
+  const nextRange = latest ? nextPeriodRange(mapPeriod(latest)) : nextPeriodRange(await readCompany(organizationId));
+  const startDate = String(input.startDate || nextRange.startDate).trim();
+  const endDate = String(input.endDate || nextRange.endDate).trim();
+  const year = startDate.slice(0, 4);
+
+  return {
+    id: String(input.id || periodIdForCompany({ organizationId, fiscalYearStart: startDate })).trim(),
+    name: String(input.name || `Exercice ${year}`).trim(),
+    startDate,
+    endDate,
+    status: "open",
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function validateCompany(company) {
+  const errors = [];
+  if (company.name.length < 2) errors.push("Le nom de la societe est obligatoire.");
+  if (!/^[A-Z]{2,3}$/.test(company.country)) errors.push("Le pays doit etre renseigne avec un code court, ex: CI.");
+  if (!/^[A-Z]{3}$/.test(company.currency)) errors.push("La devise doit etre un code a 3 lettres, ex: XOF.");
+  if (!isIsoDate(company.fiscalYearStart)) errors.push("La date de debut d'exercice est invalide.");
+  if (!isIsoDate(company.fiscalYearEnd)) errors.push("La date de fin d'exercice est invalide.");
+  if (isIsoDate(company.fiscalYearStart) && isIsoDate(company.fiscalYearEnd) && company.fiscalYearEnd < company.fiscalYearStart) {
+    errors.push("La fin d'exercice doit etre posterieure au debut.");
+  }
+  return errors;
+}
+
+async function validatePeriod(period) {
+  const errors = [];
+  if (!period.name || period.name.length < 3) errors.push("Le nom de l'exercice est obligatoire.");
+  if (!isIsoDate(period.startDate)) errors.push("La date de debut d'exercice est invalide.");
+  if (!isIsoDate(period.endDate)) errors.push("La date de fin d'exercice est invalide.");
+  if (isIsoDate(period.startDate) && isIsoDate(period.endDate) && period.endDate < period.startDate) {
+    errors.push("La fin d'exercice doit etre posterieure au debut.");
+  }
+
+  if (await readPeriod(period.id, period.organizationId)) errors.push("Un exercice avec cet identifiant existe deja.");
+
+  if (errors.length === 0) {
+    const overlap = await pg().one(`
+      SELECT *
+      FROM accounting_periods
+      WHERE organization_id = ? AND NOT (end_date < ? OR start_date > ?)
+      LIMIT 1
+    `, [period.organizationId ?? defaultOrganizationId, period.startDate, period.endDate]);
+    if (overlap) errors.push(`La periode chevauche ${overlap.name}.`);
+  }
+
+  return errors;
+}
+
+async function validateCustomAccount(account, organizationId) {
+  const errors = [];
+  if (!/^\d{4}$/.test(account.code)) errors.push("Le compte doit contenir exactement 4 chiffres.");
+  if (account.label.length < 2) errors.push("Le libelle du compte est obligatoire.");
+  if (!["asset", "liability", "equity", "expense", "revenue"].includes(account.type)) errors.push("Le type du compte est invalide.");
+  if (accountByCode.has(account.code)) errors.push("Ce compte existe deja dans le plan SYSCOHADA.");
+  if (await readCustomAccount(account.code, organizationId)) errors.push("Ce compte existe deja dans ce dossier.");
+  return errors;
+}
+
+async function validateJournal(journal) {
+  const errors = [];
+  if (!/^[A-Z0-9]{2,8}$/.test(journal.code)) errors.push("Le code journal doit contenir 2 a 8 caracteres alphanumeriques.");
+  if (journal.label.length < 2) errors.push("Le libelle du journal est obligatoire.");
+  if (!["misc", "bank", "cash", "sales", "purchase", "payroll", "closing"].includes(journal.type)) errors.push("Le type du journal est invalide.");
+  if (await readJournal(journal.code, journal.organizationId)) errors.push("Ce journal existe deja dans ce dossier.");
+  return errors;
+}
+
+function normalizeJournalType(type) {
+  return ["misc", "bank", "cash", "sales", "purchase", "payroll", "closing"].includes(type) ? type : "misc";
+}
+
+function periodIdForCompany(company) {
+  const year = company.fiscalYearStart.slice(0, 4);
+  return company.organizationId === defaultOrganizationId ? `period-${year}` : `period-${company.organizationId}-${year}`;
+}
+
+function nextPeriodRange(period) {
+  const start = addDays(period.endDate ?? period.fiscalYearEnd, 1);
+  const end = addDays(addYears(start, 1), -1);
+  return { startDate: start, endDate: end };
+}
+
+function addYears(date, years) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCFullYear(value.getUTCFullYear() + years);
+  return value.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
 }
 
 function parseJson(value, fallback) {

@@ -530,6 +530,7 @@ export async function readAccounts(organizationId = defaultOrganizationId) {
 }
 
 export async function addCustomAccount(input) {
+  if (usePostgresRuntime()) return postgresStore.addCustomAccount(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const account = enrichAccount({
@@ -563,6 +564,7 @@ export async function readJournals(organizationId = defaultOrganizationId) {
 }
 
 export async function addJournal(input) {
+  if (usePostgresRuntime()) return postgresStore.addJournal(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const journal = {
@@ -592,6 +594,7 @@ export async function addJournal(input) {
 }
 
 export async function updateCompany(input) {
+  if (usePostgresRuntime()) return postgresStore.updateCompany(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const current = readCompany(db, organizationId);
@@ -694,6 +697,7 @@ export async function addJournalEntries(entries) {
 }
 
 export async function addAuxiliaryAccount(input) {
+  if (usePostgresRuntime()) return postgresStore.addAuxiliaryAccount(input);
   const db = await getDatabase();
   const code = String(input.code || "").trim().toUpperCase();
   const label = String(input.label || "").trim();
@@ -734,6 +738,7 @@ export async function addAuxiliaryAccount(input) {
 }
 
 export async function addAccountingPeriod(input = {}) {
+  if (usePostgresRuntime()) return postgresStore.addAccountingPeriod(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const period = { ...buildAccountingPeriod(db, input), organizationId };
@@ -1009,6 +1014,7 @@ export async function addClassificationCorrections(corrections) {
 }
 
 export async function setAccountingPeriodStatus(periodId, status, organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.setAccountingPeriodStatus(periodId, status, organizationId);
   const db = await getDatabase();
   if (!["open", "locked"].includes(status)) {
     return { ok: false, error: "Statut de periode invalide." };
