@@ -1,4 +1,5 @@
 import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
+import { normalizeJournalEntry } from "./accounting.js";
 import { createPostgresRuntime } from "./postgresRuntime.js";
 import { createSessionToken, hashToken, publicUser, verifyPassword } from "./security.js";
 
@@ -237,6 +238,117 @@ export async function setAccountingPeriodStatus(periodId, status, organizationId
   return { ok: true, period: await readPeriod(periodId, organizationId) };
 }
 
+export async function addJournalEntry(entry) {
+  return (await addJournalEntries([entry]))[0];
+}
+
+export async function addJournalEntries(entries) {
+  if (entries.length === 0) return [];
+
+  const normalizedEntries = entries.map((entry) => normalizeJournalEntry(entry));
+  const organizationId = normalizedEntries[0]?.organizationId ?? defaultOrganizationId;
+  for (const entry of normalizedEntries) {
+    await ensureKnownJournal(entry.source, organizationId);
+  }
+  await assertEntriesInOpenPeriods(normalizedEntries);
+
+  await pg().transaction(async (tx) => {
+    for (const entry of normalizedEntries) {
+      await insertEntry(tx, entry);
+    }
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: normalizedEntries.length === 1 ? "journal.create" : "journal.bulk_create",
+      entityType: "journal_entry",
+      entityId: normalizedEntries.length === 1 ? normalizedEntries[0].id : "batch",
+      summary: `${normalizedEntries.length} ecriture(s) ajoutee(s)`,
+      details: { entryIds: normalizedEntries.map((entry) => entry.id) }
+    });
+  });
+
+  return normalizedEntries;
+}
+
+export async function updateJournalEntry(entryId, input) {
+  const current = await readEntry(entryId);
+  if (!current) return { ok: false, status: 404, error: "Ecriture introuvable." };
+
+  const organizationId = current.organizationId ?? defaultOrganizationId;
+  const lockedCurrentPeriod = await findLockedPeriodForDate(current.date, organizationId);
+  if (lockedCurrentPeriod) {
+    return { ok: false, status: 423, error: `Periode verrouillee: ${lockedCurrentPeriod.name}.` };
+  }
+
+  const updated = normalizeJournalEntry({
+    ...current,
+    ...input,
+    id: current.id,
+    organizationId,
+    batchId: current.batchId,
+    bankFingerprint: current.bankFingerprint,
+    createdAt: current.createdAt
+  });
+  await ensureKnownJournal(updated.source, organizationId);
+  await assertEntriesInOpenPeriods([updated]);
+
+  await pg().transaction(async (tx) => {
+    await insertEntry(tx, updated);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "journal.update",
+      entityType: "journal_entry",
+      entityId: entryId,
+      summary: `Ecriture modifiee: ${updated.reference} - ${updated.description}`,
+      details: { before: current, after: updated }
+    });
+  });
+
+  return { ok: true, entry: updated };
+}
+
+export async function deleteJournalEntry(entryId) {
+  const entry = await readEntry(entryId);
+  if (!entry) return { ok: false, error: "Ecriture introuvable." };
+
+  const lockedPeriod = await findLockedPeriodForDate(entry.date, entry.organizationId);
+  if (lockedPeriod) {
+    return { ok: false, status: 423, error: `Periode verrouillee: ${lockedPeriod.name}.` };
+  }
+
+  await pg().transaction(async (tx) => {
+    await tx.run("DELETE FROM journal_lines WHERE entry_id = ?", [entryId]);
+    await tx.run("DELETE FROM journal_entries WHERE id = ?", [entryId]);
+    await insertAuditEvent(tx, {
+      organizationId: entry.organizationId,
+      action: "journal.delete",
+      entityType: "journal_entry",
+      entityId: entryId,
+      summary: `Ecriture supprimee: ${entry.reference} - ${entry.description}`,
+      details: { entry }
+    });
+
+    if (entry.batchId) {
+      const batch = await readBatchWithRuntime(tx, entry.batchId);
+      if (batch) {
+        const entryIds = batch.entryIds.filter((id) => id !== entryId);
+        await tx.run(`
+          UPDATE bank_import_batches
+          SET entry_ids_json = ?, imported_count = ?, status = ?, updated_at = ?
+          WHERE id = ?
+        `, [
+          JSON.stringify(entryIds),
+          Math.max(0, batch.importedCount - 1),
+          entryIds.length === 0 ? "voided" : "partial",
+          new Date().toISOString(),
+          batch.id
+        ]);
+      }
+    }
+  });
+
+  return { ok: true, entry };
+}
+
 async function readSnapshot(organizationId = defaultOrganizationId) {
   const [
     company,
@@ -458,6 +570,11 @@ async function readBatches(organizationId = defaultOrganizationId) {
   `, [organizationId])).map(mapBatch);
 }
 
+async function readBatchWithRuntime(database, batchId) {
+  const row = await database.one("SELECT * FROM bank_import_batches WHERE id = ?", [batchId]);
+  return row ? mapBatch(row) : null;
+}
+
 async function readSubscriptionBatches(organizationId = defaultOrganizationId) {
   return (await pg().many(`
     SELECT *
@@ -518,6 +635,11 @@ async function readEntries(organizationId = defaultOrganizationId) {
   return entries;
 }
 
+async function readEntry(entryId) {
+  const row = await pg().one("SELECT * FROM journal_entries WHERE id = ?", [entryId]);
+  return row ? readEntryFromRow(row) : null;
+}
+
 async function readEntryFromRow(row) {
   const lines = await pg().many(`
     SELECT *
@@ -544,6 +666,37 @@ async function readEntryFromRow(row) {
       credit: Number(line.credit)
     }))
   };
+}
+
+async function ensureKnownJournal(code, organizationId) {
+  const journalCode = String(code || "manual").trim();
+  if (["manual", "seed", "subscription", "bank-csv"].includes(journalCode)) return;
+  if (!(await readJournal(journalCode, organizationId))) {
+    const error = new Error(`Journal inconnu: ${journalCode}.`);
+    error.status = 422;
+    throw error;
+  }
+}
+
+async function assertEntriesInOpenPeriods(entries) {
+  for (const entry of entries) {
+    const lockedPeriod = await findLockedPeriodForDate(entry.date, entry.organizationId);
+    if (lockedPeriod) {
+      const error = new Error(`Periode verrouillee: ${lockedPeriod.name}.`);
+      error.status = 423;
+      throw error;
+    }
+  }
+}
+
+async function findLockedPeriodForDate(date, organizationId = defaultOrganizationId) {
+  const row = await pg().one(`
+    SELECT *
+    FROM accounting_periods
+    WHERE organization_id = ? AND status = 'locked' AND ? BETWEEN start_date AND end_date
+    LIMIT 1
+  `, [organizationId ?? defaultOrganizationId, date]);
+  return row ? mapPeriod(row) : null;
 }
 
 function mapBatch(row) {
@@ -783,6 +936,54 @@ async function insertAuditEvent(database, event) {
     JSON.stringify(event.details ?? {}),
     event.createdAt ?? new Date().toISOString()
   ]);
+}
+
+async function insertEntry(database, entry) {
+  await database.run(`
+    INSERT INTO journal_entries
+    (id, organization_id, date, reference, description, source, batch_id, bank_fingerprint, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      date = EXCLUDED.date,
+      reference = EXCLUDED.reference,
+      description = EXCLUDED.description,
+      source = EXCLUDED.source,
+      batch_id = EXCLUDED.batch_id,
+      bank_fingerprint = EXCLUDED.bank_fingerprint,
+      created_at = EXCLUDED.created_at
+  `, [
+    entry.id,
+    entry.organizationId ?? defaultOrganizationId,
+    entry.date,
+    entry.reference ?? fallbackReference(entry),
+    entry.description,
+    entry.source,
+    entry.batchId ?? null,
+    entry.bankFingerprint ?? null,
+    entry.createdAt
+  ]);
+
+  await database.run("DELETE FROM journal_lines WHERE entry_id = ?", [entry.id]);
+  const nextIdRow = await database.one("SELECT COALESCE(MAX(id), 0)::int + 1 AS id FROM journal_lines");
+  let nextLineId = Number(nextIdRow?.id || 1);
+  for (const [index, line] of entry.lines.entries()) {
+    await database.run(`
+      INSERT INTO journal_lines
+      (id, entry_id, line_index, account_code, auxiliary_code, label, debit, credit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      nextLineId,
+      entry.id,
+      index,
+      line.accountCode,
+      line.auxiliaryCode ?? null,
+      line.label,
+      line.debit,
+      line.credit
+    ]);
+    nextLineId += 1;
+  }
 }
 
 async function ensurePeriodForCompany(database, company) {

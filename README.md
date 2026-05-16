@@ -81,6 +81,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Premier module d'adapter runtime PostgreSQL avec transactions et verification `npm.cmd run db:pg:check`
 - Runtime PostgreSQL activable par `OHADA_DB_RUNTIME=postgres` pour les lectures principales et l'authentification
 - Mutations PostgreSQL de configuration: societe, comptes, journaux, auxiliaires et exercices
+- Mutations PostgreSQL d'ecritures comptables manuelles: ajout, modification et suppression hors periode verrouillee
 - Healthcheck base de donnees avec runtime SQLite explicite et verification PostgreSQL optionnelle
 - Colonnes `organization_id` sur les tables metier pour preparer l'isolation multi-entreprise
 - Contexte organisation applique aux lectures et ecritures API authentifiees

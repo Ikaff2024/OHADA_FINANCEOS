@@ -629,10 +629,12 @@ export async function updateCompany(input) {
 }
 
 export async function addJournalEntry(entry) {
+  if (usePostgresRuntime()) return postgresStore.addJournalEntry(entry);
   return (await addJournalEntries([entry]))[0];
 }
 
 export async function updateJournalEntry(entryId, input) {
+  if (usePostgresRuntime()) return postgresStore.updateJournalEntry(entryId, input);
   const db = await getDatabase();
   const current = readEntry(db, entryId);
   if (!current) return { ok: false, status: 404, error: "Ecriture introuvable." };
@@ -671,6 +673,7 @@ export async function updateJournalEntry(entryId, input) {
 }
 
 export async function addJournalEntries(entries) {
+  if (usePostgresRuntime()) return postgresStore.addJournalEntries(entries);
   if (entries.length === 0) return [];
 
   const db = await getDatabase();
@@ -762,6 +765,7 @@ export async function addAccountingPeriod(input = {}) {
 }
 
 export async function deleteJournalEntry(entryId) {
+  if (usePostgresRuntime()) return postgresStore.deleteJournalEntry(entryId);
   const db = await getDatabase();
   const entry = readEntry(db, entryId);
   if (!entry) {
