@@ -349,6 +349,136 @@ export async function deleteJournalEntry(entryId) {
   return { ok: true, entry };
 }
 
+export async function addBankImportBatch(batch) {
+  await pg().transaction(async (tx) => {
+    await insertBatch(tx, batch);
+    await insertAuditEvent(tx, {
+      organizationId: batch.organizationId,
+      action: "bank_import.commit",
+      entityType: "bank_import_batch",
+      entityId: batch.id,
+      summary: `Import bancaire valide: ${batch.importedCount} ecriture(s)`,
+      details: batch
+    });
+  });
+  return batch;
+}
+
+export async function voidBankImportBatch(batchId, organizationId = defaultOrganizationId) {
+  const batch = await readBatchWithRuntime(pg(), batchId);
+  if (!batch) return { ok: false, error: "Lot d'import introuvable." };
+  if (batch.status === "voided") return { ok: true, batch, removedCount: 0 };
+
+  const entryIds = new Set(batch.entryIds);
+  const entries = [];
+  for (const entryId of entryIds) {
+    const entry = await readEntry(entryId);
+    if (entry) entries.push(entry);
+  }
+
+  for (const entry of entries) {
+    const lockedPeriod = await findLockedPeriodForDate(entry.date, organizationId);
+    if (lockedPeriod) {
+      return { ok: false, status: 423, error: `Periode verrouillee: ${lockedPeriod.name}.` };
+    }
+  }
+
+  const before = Number((await pg().one("SELECT COUNT(*)::int AS count FROM journal_entries"))?.count ?? 0);
+  await pg().transaction(async (tx) => {
+    for (const entryId of entryIds) {
+      await tx.run("DELETE FROM journal_lines WHERE entry_id = ?", [entryId]);
+      await tx.run("DELETE FROM journal_entries WHERE id = ?", [entryId]);
+    }
+    await tx.run(`
+      UPDATE bank_import_batches
+      SET status = 'voided', voided_at = ?, updated_at = ?
+      WHERE id = ? AND organization_id = ?
+    `, [new Date().toISOString(), new Date().toISOString(), batchId, organizationId]);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "bank_import.void",
+      entityType: "bank_import_batch",
+      entityId: batchId,
+      summary: `Lot bancaire annule: ${batch.importedCount} ecriture(s) visee(s)`,
+      details: batch
+    });
+  });
+  const after = Number((await pg().one("SELECT COUNT(*)::int AS count FROM journal_entries"))?.count ?? 0);
+
+  return { ok: true, batch: { ...batch, status: "voided" }, removedCount: before - after };
+}
+
+export async function addClassificationCorrections(corrections) {
+  if (corrections.length === 0) return [];
+
+  const newCorrections = [];
+  await pg().transaction(async (tx) => {
+    for (const correction of corrections) {
+      const row = await tx.one(`
+        INSERT INTO classification_corrections
+        (organization_id, match_text, description, direction, account_code, counterparty_account_code, reason, confidence, learned_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (organization_id, direction, match_text, account_code) DO NOTHING
+        RETURNING *
+      `, [
+        correction.organizationId ?? defaultOrganizationId,
+        correction.matchText,
+        correction.description,
+        correction.direction,
+        correction.accountCode,
+        correction.counterpartyAccountCode,
+        correction.reason,
+        correction.confidence,
+        correction.learnedAt
+      ]);
+      if (row) {
+        newCorrections.push({
+          organizationId: row.organization_id ?? defaultOrganizationId,
+          matchText: row.match_text,
+          description: row.description,
+          direction: row.direction,
+          accountCode: row.account_code,
+          counterpartyAccountCode: row.counterparty_account_code,
+          reason: row.reason,
+          confidence: Number(row.confidence),
+          learnedAt: isoDateTime(row.learned_at)
+        });
+      }
+    }
+  });
+
+  return newCorrections;
+}
+
+export async function addSubscriptionBatch(batch, entries) {
+  const normalizedEntries = entries.map((entry) => normalizeJournalEntry(entry));
+  await assertEntriesInOpenPeriods(normalizedEntries);
+
+  await pg().transaction(async (tx) => {
+    await insertSubscriptionBatch(tx, {
+      ...batch,
+      entryIds: normalizedEntries.map((entry) => entry.id)
+    });
+    for (const entry of normalizedEntries) {
+      await insertEntry(tx, entry);
+    }
+    await insertAuditEvent(tx, {
+      organizationId: batch.organizationId,
+      action: "subscription.generate",
+      entityType: "subscription_batch",
+      entityId: batch.id,
+      summary: `Abonnement genere: ${batch.name} (${normalizedEntries.length} ecriture(s))`,
+      details: { batch, entryIds: normalizedEntries.map((entry) => entry.id) }
+    });
+  });
+
+  return {
+    ...batch,
+    entryIds: normalizedEntries.map((entry) => entry.id),
+    entries: normalizedEntries
+  };
+}
+
 async function readSnapshot(organizationId = defaultOrganizationId) {
   const [
     company,
@@ -984,6 +1114,68 @@ async function insertEntry(database, entry) {
     ]);
     nextLineId += 1;
   }
+}
+
+async function insertBatch(database, batch) {
+  await database.run(`
+    INSERT INTO bank_import_batches
+    (id, organization_id, created_at, source, status, transaction_count, imported_count, duplicate_count, learned_count, entry_ids_json, voided_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      created_at = EXCLUDED.created_at,
+      source = EXCLUDED.source,
+      status = EXCLUDED.status,
+      transaction_count = EXCLUDED.transaction_count,
+      imported_count = EXCLUDED.imported_count,
+      duplicate_count = EXCLUDED.duplicate_count,
+      learned_count = EXCLUDED.learned_count,
+      entry_ids_json = EXCLUDED.entry_ids_json,
+      voided_at = EXCLUDED.voided_at,
+      updated_at = EXCLUDED.updated_at
+  `, [
+    batch.id,
+    batch.organizationId ?? defaultOrganizationId,
+    batch.createdAt,
+    batch.source,
+    batch.status,
+    batch.transactionCount,
+    batch.importedCount,
+    batch.duplicateCount,
+    batch.learnedCount,
+    JSON.stringify(batch.entryIds ?? []),
+    batch.voidedAt ?? null,
+    batch.updatedAt ?? null
+  ]);
+}
+
+async function insertSubscriptionBatch(database, batch) {
+  await database.run(`
+    INSERT INTO subscription_batches
+    (id, organization_id, name, description, start_date, end_date, frequency, entry_count, entry_ids_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET
+      organization_id = EXCLUDED.organization_id,
+      name = EXCLUDED.name,
+      description = EXCLUDED.description,
+      start_date = EXCLUDED.start_date,
+      end_date = EXCLUDED.end_date,
+      frequency = EXCLUDED.frequency,
+      entry_count = EXCLUDED.entry_count,
+      entry_ids_json = EXCLUDED.entry_ids_json,
+      created_at = EXCLUDED.created_at
+  `, [
+    batch.id,
+    batch.organizationId ?? defaultOrganizationId,
+    batch.name,
+    batch.description,
+    batch.startDate,
+    batch.endDate,
+    batch.frequency ?? "monthly",
+    batch.entryCount ?? batch.entryIds?.length ?? 0,
+    JSON.stringify(batch.entryIds ?? []),
+    batch.createdAt ?? new Date().toISOString()
+  ]);
 }
 
 async function ensurePeriodForCompany(database, company) {

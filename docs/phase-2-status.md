@@ -40,6 +40,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Runtime PostgreSQL activable par `OHADA_DB_RUNTIME=postgres` pour les lectures principales et l'authentification.
 - Mutations de configuration branchees sur PostgreSQL: societe, comptes personnalises, journaux, auxiliaires et exercices.
 - Mutations d'ecritures comptables manuelles branchees sur PostgreSQL: ajout, modification et suppression tant que l'exercice est ouvert.
+- Imports bancaires, corrections d'apprentissage et abonnements branches sur PostgreSQL via le runtime.
 - Healthcheck base de donnees indiquant le runtime SQLite et la disponibilite PostgreSQL optionnelle.
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
 - Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
@@ -49,7 +50,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
-- Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, healthcheck de transition disponible, lectures/auth, configuration et ecritures manuelles branchees sur PostgreSQL via flag; il reste les imports, abonnements, lettrage et exports serveur.
+- Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, healthcheck de transition disponible, lectures/auth, configuration, ecritures manuelles, imports et abonnements branches sur PostgreSQL via flag; il reste le lettrage et les exports serveur.
 - Auth: le flux de connexion, les invitations par lien et la reinitialisation par lien sont disponibles; il reste l'envoi email transactionnel.
 - Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
 - Exports: exports navigateur et generation serveur historisee disponibles.

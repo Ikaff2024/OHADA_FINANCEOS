@@ -811,6 +811,7 @@ export async function deleteJournalEntry(entryId) {
 }
 
 export async function addBankImportBatch(batch) {
+  if (usePostgresRuntime()) return postgresStore.addBankImportBatch(batch);
   const db = await getDatabase();
   withTransaction(db, () => {
     insertBatch(db, batch);
@@ -827,6 +828,7 @@ export async function addBankImportBatch(batch) {
 }
 
 export async function addSubscriptionBatch(batch, entries) {
+  if (usePostgresRuntime()) return postgresStore.addSubscriptionBatch(batch, entries);
   const db = await getDatabase();
   const normalizedEntries = entries.map((entry) => normalizeJournalEntry(entry));
   assertEntriesInOpenPeriods(db, normalizedEntries);
@@ -945,6 +947,7 @@ export async function addAutomaticLettering(input = {}) {
 }
 
 export async function voidBankImportBatch(batchId, organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.voidBankImportBatch(batchId, organizationId);
   const db = await getDatabase();
   const batch = readBatch(db, batchId);
   if (!batch) {
@@ -988,6 +991,7 @@ export async function voidBankImportBatch(batchId, organizationId = defaultOrgan
 }
 
 export async function addClassificationCorrections(corrections) {
+  if (usePostgresRuntime()) return postgresStore.addClassificationCorrections(corrections);
   if (corrections.length === 0) return [];
 
   const db = await getDatabase();
