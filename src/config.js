@@ -11,6 +11,9 @@ export const config = {
   defaultAdminPassword: process.env.OHADA_DEFAULT_ADMIN_PASSWORD || "admin12345",
   sessionTtlHours: Number(process.env.OHADA_SESSION_TTL_HOURS || 12),
   jobWorkerIntervalMs: Number(process.env.OHADA_JOB_WORKER_INTERVAL_MS || 1500),
+  authRateLimitWindowMs: Number(process.env.OHADA_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  authRateLimitMaxAttempts: Number(process.env.OHADA_AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10),
+  corsAllowedOrigins: String(process.env.OHADA_CORS_ALLOWED_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean),
   databaseUrl: process.env.DATABASE_URL || ""
 };
 

@@ -1316,7 +1316,7 @@ td input[type="checkbox"] {
 td:nth-child(3),
 td:nth-child(4),
 td:nth-child(5) {
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
 }
 

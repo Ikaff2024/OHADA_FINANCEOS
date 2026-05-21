@@ -11,7 +11,8 @@ const server = spawn(process.execPath, ["src/server.js"], {
     ...process.env,
     PORT: String(port),
     OHADA_DB_PATH: testDbPath,
-    OHADA_STORAGE_DIR: testStoragePath
+    OHADA_STORAGE_DIR: testStoragePath,
+    OHADA_CORS_ALLOWED_ORIGINS: "http://localhost:9999"
   },
   stdio: ["ignore", "pipe", "pipe"]
 });
@@ -26,9 +27,22 @@ server.stderr.on("data", (chunk) => {
 
 try {
   await waitForServer(port);
+  await assertProductionStartupGuard();
 
   const health = await fetchJson(`http://localhost:${port}/api/health`);
   assert.equal(health.ok, true);
+  const healthWithHeaders = await fetch(`http://localhost:${port}/api/health`);
+  assert.equal(healthWithHeaders.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(healthWithHeaders.headers.get("x-frame-options"), "DENY");
+  const corsPreflight = await fetch(`http://localhost:${port}/api/health`, {
+    method: "OPTIONS",
+    headers: {
+      origin: "http://localhost:9999",
+      "access-control-request-method": "GET"
+    }
+  });
+  assert.equal(corsPreflight.status, 204);
+  assert.equal(corsPreflight.headers.get("access-control-allow-origin"), "http://localhost:9999");
 
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
@@ -52,6 +66,33 @@ try {
   });
   assert.equal(anonymousWrite.status, 401);
 
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const denied = await fetch(`http://localhost:${port}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "rate-limit@test.local", password: "bad-password" })
+    });
+    assert.equal(denied.status, 401);
+  }
+  const blockedAttempt = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "rate-limit@test.local", password: "bad-password" })
+  });
+  assert.equal(blockedAttempt.status, 429);
+  const blockedPayload = await blockedAttempt.json();
+  assert.equal(typeof blockedPayload.retryAfterMs, "number");
+  assert.equal(blockedPayload.retryAfterMs > 0, true);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const adminDenied = await fetch(`http://localhost:${port}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "admin@demo.ohada", password: "bad-password" })
+    });
+    assert.equal(adminDenied.status, 401);
+  }
+
   const login = await fetch(`http://localhost:${port}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -61,6 +102,12 @@ try {
   const loginBody = await login.json();
   assert.equal(typeof loginBody.token, "string");
   assert.equal(loginBody.user.role, "owner");
+  const adminDeniedAfterSuccess = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "admin@demo.ohada", password: "bad-password" })
+  });
+  assert.equal(adminDeniedAfterSuccess.status, 401);
   const authHeaders = {
     "content-type": "application/json",
     authorization: `Bearer ${loginBody.token}`
@@ -252,6 +299,8 @@ try {
 
   const html = await fetch(`http://localhost:${port}/`);
   assert.equal(html.status, 200);
+  assert.equal(html.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(html.headers.get("x-frame-options"), "DENY");
   assert.match(await html.text(), /OHADA FinanceOS/);
 
   const updateCompany = await fetch(`http://localhost:${port}/api/company`, {
@@ -604,6 +653,31 @@ async function waitForServer(targetPort) {
   }
 
   throw new Error(`Serveur indisponible. Sortie:\n${output}`);
+}
+
+async function assertProductionStartupGuard() {
+  const guardServer = spawn(process.execPath, ["src/server.js"], {
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      PORT: "0",
+      OHADA_DEFAULT_ADMIN_PASSWORD: "admin12345",
+      OHADA_DB_PATH: join("data", `guard-db-${Date.now()}.sqlite`),
+      OHADA_STORAGE_DIR: join("data", `guard-storage-${Date.now()}`)
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let guardOutput = "";
+  guardServer.stdout.on("data", (chunk) => {
+    guardOutput += chunk.toString();
+  });
+  guardServer.stderr.on("data", (chunk) => {
+    guardOutput += chunk.toString();
+  });
+
+  const exitCode = await new Promise((resolve) => guardServer.once("exit", resolve));
+  assert.notEqual(exitCode, 0);
+  assert.match(guardOutput, /OHADA_DEFAULT_ADMIN_PASSWORD/);
 }
 
 async function fetchJson(url) {
