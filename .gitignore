@@ -9,3 +9,4 @@ data/*.sqlite-*
 data/postgres-seed*.sql
 storage/uploads/*
 !storage/uploads/.gitkeep
+.aider*

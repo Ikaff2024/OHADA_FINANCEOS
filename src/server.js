@@ -9,8 +9,14 @@ import {
   buildIncomeStatement,
   buildTrialBalance,
   normalizeJournalEntry,
-  validateJournalEntry
+  validateJournalEntry,
+  buildAgedBalance
 } from "./accounting.js";
+import {
+  buildSyscohadaBalanceSheet,
+  buildSyscohadaIncomeStatement,
+  buildVatDeclaration
+} from "./syscohadaReports.js";
 import {
   buildLearningCorrections,
   journalEntryFingerprints,
@@ -19,6 +25,7 @@ import {
   transactionsToJournalEntries
 } from "./bankImport.js";
 import { accountClasses } from "./ohadaChart.js";
+import { askAssistant } from "./ai.js";
 import {
   addAccountingPeriod,
   addCustomAccount,
@@ -219,7 +226,8 @@ async function handleAuthApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/auth/me") {
-    const auth = await readAuthContext(bearerToken(request));
+    const activeOrganizationId = request.headers["x-organization-id"] || null;
+    const auth = await readAuthContext(bearerToken(request), activeOrganizationId);
     sendJson(response, auth ? 200 : 401, auth ?? { error: "Non authentifie." });
     return true;
   }
@@ -655,12 +663,23 @@ async function handleReportsApi(request, response, url, db) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/balance-sheet") {
-    sendJson(response, 200, buildBalanceSheet(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    const entries = entriesForReportPeriod(db.journalEntries, url);
+    const syscohada = buildSyscohadaBalanceSheet(entries, db.accounts);
+    sendJson(response, 200, {
+      ...buildBalanceSheet(entries, db.accounts),
+      ...syscohada,
+      syscohada
+    });
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/income-statement") {
-    sendJson(response, 200, buildIncomeStatement(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    sendJson(response, 200, buildSyscohadaIncomeStatement(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/reports/vat-declaration") {
+    sendJson(response, 200, buildVatDeclaration(entriesForReportPeriod(db.journalEntries, url), db.accounts));
     return true;
   }
 
@@ -669,6 +688,32 @@ async function handleReportsApi(request, response, url, db) {
     return true;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/reports/aged-balance/clients") {
+    const asOfDate = url.searchParams.get("to") || "";
+    sendJson(response, 200, buildAgedBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, asOfDate, "41", "AR"));
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/reports/aged-balance/suppliers") {
+    const asOfDate = url.searchParams.get("to") || "";
+    sendJson(response, 200, buildAgedBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, asOfDate, "40", "AP"));
+    return true;
+  }
+
+  return false;
+}
+async function handleChatApi(request, response, url) {
+  if (request.method === "POST" && url.pathname === "/api/chat") {
+    try {
+      const payload = await readJson(request);
+      const answer = await askAssistant(payload.message, payload.history || []);
+      sendJson(response, 200, { answer });
+    } catch (e) {
+      console.error("Chat API Error:", e);
+      sendJson(response, 500, { error: e.message });
+    }
+    return true;
+  }
   return false;
 }
 
@@ -716,6 +761,7 @@ async function handleApi(request, response, url) {
   if (await handlePeriodsEntriesApi(request, response, url, organizationId, db)) return;
   if (await handleTreasuryOperationsApi(request, response, url, organizationId, db)) return;
   if (await handleReportsApi(request, response, url, db)) return;
+  if (await handleChatApi(request, response, url)) return;
 
   sendJson(response, 404, { error: "Route introuvable." });
 }
@@ -814,7 +860,8 @@ function bearerToken(request) {
 }
 
 async function requireAuth(request, response) {
-  const auth = await readAuthContext(bearerToken(request));
+  const activeOrganizationId = request.headers["x-organization-id"] || null;
+  const auth = await readAuthContext(bearerToken(request), activeOrganizationId);
   if (!auth) {
     sendJson(response, 401, { error: "Authentification requise." });
     return null;

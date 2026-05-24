@@ -8,6 +8,7 @@ const outputPath = resolve(rootDir, process.argv[2] || "data/postgres-seed.sql")
 const tables = [
   "organizations",
   "users",
+  "organization_users",
   "auth_tokens",
   "companies",
   "accounting_periods",
@@ -43,9 +44,9 @@ const statements = [
 ];
 
 for (const table of tables) {
-  if (!tableExists(table)) continue;
-  const columns = db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all().map((column) => column.name);
-  const rows = db.prepare(`SELECT * FROM ${quoteIdentifier(table)}`).all();
+  const exported = rowsForTable(table);
+  if (!exported) continue;
+  const { columns, rows } = exported;
   if (rows.length === 0) continue;
 
   statements.push("");
@@ -72,7 +73,7 @@ function tableExists(table) {
 }
 
 function ensureOrganizationColumns(database) {
-  const organizationTables = tables.filter((table) => !["organizations", "users", "journal_lines"].includes(table));
+  const organizationTables = tables.filter((table) => !["organizations", "users", "organization_users", "journal_lines"].includes(table));
   for (const table of organizationTables) {
     if (!tableExists(table)) continue;
     const hasColumn = database.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all()
@@ -80,6 +81,29 @@ function ensureOrganizationColumns(database) {
     if (!hasColumn) database.exec(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN organization_id TEXT NOT NULL DEFAULT 'demo-company'`);
     database.prepare(`UPDATE ${quoteIdentifier(table)} SET organization_id = ? WHERE organization_id IS NULL OR organization_id = ''`).run("demo-company");
   }
+}
+
+function rowsForTable(table) {
+  if (table === "organization_users" && !tableExists(table)) {
+    const userColumns = db.prepare(`PRAGMA table_info(${quoteIdentifier("users")})`).all().map((column) => column.name);
+    if (!userColumns.includes("organization_id") || !userColumns.includes("role")) return null;
+    return {
+      columns: ["user_id", "organization_id", "role"],
+      rows: db.prepare(`
+        SELECT id AS user_id, organization_id, role
+        FROM users
+        WHERE organization_id IS NOT NULL AND organization_id != '' AND role IS NOT NULL AND role != ''
+      `).all()
+    };
+  }
+
+  if (!tableExists(table)) return null;
+
+  const columns = db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all()
+    .map((column) => column.name)
+    .filter((column) => table !== "users" || !["organization_id", "role"].includes(column));
+  const rows = db.prepare(`SELECT * FROM ${quoteIdentifier(table)}`).all();
+  return { columns, rows };
 }
 
 function quoteIdentifier(identifier) {

@@ -1,7 +1,8 @@
 import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.js";
 import { normalizeJournalEntry } from "./accounting.js";
 import { createPostgresRuntime } from "./postgresRuntime.js";
-import { createSessionToken, hashToken, publicUser, verifyPassword } from "./security.js";
+import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
+import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
 
 const defaultOrganizationId = "demo-company";
 let runtime;
@@ -32,11 +33,14 @@ export async function loginUser(input, sessionTtlHours) {
     VALUES (?, ?, ?, ?)
   `, [hashToken(token), user.id, now.toISOString(), expiresAt]);
 
+  const auth = await readAuthContext(token);
+
   return {
     ok: true,
     token,
-    user: publicUser(user),
-    organization: await readOrganization(user.organizationId),
+    user: auth.user,
+    organization: auth.organization,
+    availableOrganizations: auth.availableOrganizations,
     expiresAt
   };
 }
@@ -46,7 +50,7 @@ export async function logoutUser(token) {
   return { ok: true };
 }
 
-export async function readAuthContext(token) {
+export async function readAuthContext(token, activeOrganizationId = null) {
   if (!token) return null;
   const row = await pg().one(`
     SELECT users.*
@@ -57,10 +61,24 @@ export async function readAuthContext(token) {
   `, [hashToken(token), new Date().toISOString()]);
   if (!row) return null;
 
-  const user = mapUser(row);
+  const baseUser = mapUser(row);
+  const organizations = await readUserOrganizations(baseUser.id);
+  if (organizations.length === 0) return null;
+
+  const requested = activeOrganizationId
+    ? organizations.find((organization) => organization.id === activeOrganizationId)
+    : null;
+  const organizationContext = requested ?? organizations[0];
+  const user = { ...baseUser, organizationId: organizationContext.id, role: organizationContext.role };
+
   return {
     user: publicUser(user),
-    organization: await readOrganization(user.organizationId)
+    organization: await readOrganization(user.organizationId),
+    availableOrganizations: organizations.map((organization) => ({
+      id: organization.id,
+      name: organization.name,
+      role: organization.role
+    }))
   };
 }
 
@@ -479,6 +497,671 @@ export async function addSubscriptionBatch(batch, entries) {
   };
 }
 
+
+export async function addOrganization(input) {
+  const now = new Date().toISOString();
+  const id = organizationIdFromName(input.name);
+  const organization = {
+    id,
+    name: String(input.name || "").trim(),
+    country: String(input.country || "").trim().toUpperCase(),
+    currency: String(input.currency || "").trim().toUpperCase(),
+    createdAt: now
+  };
+  const company = {
+    id,
+    organizationId: id,
+    name: organization.name,
+    country: organization.country,
+    currency: organization.currency,
+    fiscalYearStart: String(input.fiscalYearStart || "").trim(),
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+  };
+  const owner = {
+    id: crypto.randomUUID(),
+    organizationId: id,
+    email: normalizeEmail(input.ownerEmail),
+    name: String(input.ownerName || "").trim(),
+    role: "owner",
+    passwordHash: hashPassword(input.ownerPassword || ""),
+    status: "active",
+    createdAt: now
+  };
+
+  const errors = [
+    ...validateOrganization(organization),
+    ...validateCompany(company),
+    ...validateUser(owner, input.ownerPassword)
+  ];
+  if (await readOrganization(id)) errors.push("Une organisation avec ce nom existe deja.");
+  if (await readUserByEmail(owner.email)) errors.push("Cet email utilisateur existe deja.");
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  const period = {
+    id: periodIdForCompany(company),
+    organizationId: id,
+    name: "Exercice " + company.fiscalYearStart.slice(0, 4),
+    startDate: company.fiscalYearStart,
+    endDate: company.fiscalYearEnd,
+    status: "open",
+    updatedAt: now
+  };
+
+  await pg().transaction(async (tx) => {
+    await tx.run("INSERT INTO organizations (id, name, country, currency, created_at) VALUES (?, ?, ?, ?, ?)", [organization.id, organization.name, organization.country, organization.currency, organization.createdAt]);
+    
+    await insertCompany(tx, company);
+    await insertPeriod(tx, period);
+    
+    const defaultJournals = [
+      { code: "OD", label: "Operations diverses", type: "misc", status: "active", createdAt: now },
+      { code: "BQ", label: "Banque", type: "bank", status: "active", createdAt: now },
+      { code: "VT", label: "Ventes", type: "sales", status: "active", createdAt: now },
+      { code: "AC", label: "Achats", type: "purchase", status: "active", createdAt: now }
+    ];
+    for (const journal of defaultJournals) {
+      await insertJournal(tx, { ...journal, organizationId: id });
+    }
+
+    await insertUser(tx, owner);
+
+    await insertAuditEvent(tx, {
+      organizationId: id,
+      action: "organization.create",
+      entityType: "organization",
+      entityId: id,
+      summary: "Organisation creee: " + organization.name,
+      details: { organization, company, ownerEmail: owner.email }
+    });
+  });
+
+  return { ok: true, organization, company, owner: publicUser(owner) };
+}
+
+export async function addUser(input) {
+  const organizationId = String(input.organizationId || "demo-company").trim();
+  const organization = await readOrganization(organizationId);
+  if (!organization) return { ok: false, status: 422, error: "Organisation introuvable." };
+
+  const user = {
+    id: crypto.randomUUID(),
+    email: normalizeEmail(input.email),
+    name: String(input.name || "").trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : "viewer",
+    organizationId,
+    passwordHash: hashPassword(input.password || ""),
+    status: "active",
+    createdAt: new Date().toISOString()
+  };
+
+  const errors = validateUser(user, input.password);
+  const existingUser = await readUserByEmail(user.email);
+  if (existingUser) {
+    const existingRole = await readUserInOrganization(existingUser.id, organizationId);
+    if (existingRole) return { ok: false, status: 409, error: "Cet utilisateur est deja dans l'organisation." };
+    user.id = existingUser.id;
+    user.passwordHash = existingUser.passwordHash;
+    user.status = existingUser.status;
+    user.createdAt = existingUser.createdAt;
+  }
+  if (!existingUser && errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await insertUser(tx, user);
+  });
+  return { ok: true, user: publicUser(user) };
+}
+
+export async function inviteUser(input) {
+  const organizationId = String(input.organizationId || "demo-company").trim();
+  const organization = await readOrganization(organizationId);
+  if (!organization) return { ok: false, status: 422, error: "Organisation introuvable." };
+
+  const user = {
+    id: crypto.randomUUID(),
+    email: normalizeEmail(input.email),
+    name: String(input.name || "").trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : "viewer",
+    organizationId,
+    passwordHash: hashPassword(crypto.randomUUID()),
+    status: "disabled",
+    createdAt: new Date().toISOString()
+  };
+
+  const errors = validateUserIdentity(user);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+  const existingUser = await readUserByEmail(user.email);
+  if (existingUser) {
+    const existingRole = await readUserInOrganization(existingUser.id, organizationId);
+    if (existingRole) return { ok: false, status: 409, error: "Cet utilisateur est deja dans l'organisation." };
+    user.id = existingUser.id;
+    user.passwordHash = existingUser.passwordHash;
+    user.status = existingUser.status;
+    user.createdAt = existingUser.createdAt;
+  }
+
+  let invitation;
+  await pg().transaction(async (tx) => {
+    await insertUser(tx, user);
+    invitation = await createAuthToken(tx, user, "invitation", 7 * 24);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "user.invite",
+      entityType: "user",
+      entityId: user.id,
+      summary: "Invitation utilisateur: " + user.email,
+      details: { user: publicUser(user), expiresAt: invitation.expiresAt }
+    });
+  });
+
+  sendInvitationEmail(user, invitation.token).catch(console.error);
+
+  return { ok: true, user: publicUser(user), invitation };
+}
+
+export async function acceptInvitation(input) {
+  const token = await readValidAuthToken(input.token, "invitation");
+  if (!token) return { ok: false, status: 422, error: "Invitation invalide ou expiree." };
+  const user = await readUserInOrganization(token.userId, token.organizationId);
+  if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+  const errors = validatePassword(input.password);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await tx.run("UPDATE users SET password_hash = ?, status = 'active' WHERE id = ?", [hashPassword(input.password), user.id]);
+    await consumeAuthToken(tx, token.id);
+    await insertAuditEvent(tx, {
+      organizationId: user.organizationId,
+      action: "user.accept_invitation",
+      entityType: "user",
+      entityId: user.id,
+      summary: "Invitation acceptee: " + user.email,
+      details: { userId: user.id }
+    });
+  });
+
+  return { ok: true, user: publicUser(await readUserInOrganization(user.id, token.organizationId)) };
+}
+
+export async function requestPasswordReset(input) {
+  const user = await readUserByEmail(normalizeEmail(input.email));
+  if (!user || user.status !== "active") {
+    return { ok: true, message: "Si le compte existe, un lien de reinitialisation est prepare." };
+  }
+
+  let reset;
+  await pg().transaction(async (tx) => {
+    reset = await createAuthToken(tx, user, "password_reset", 2);
+    await insertAuditEvent(tx, {
+      organizationId: user.organizationId,
+      action: "user.password_reset_request",
+      entityType: "user",
+      entityId: user.id,
+      summary: "Reinitialisation demandee: " + user.email,
+      details: { expiresAt: reset.expiresAt }
+    });
+  });
+
+  sendPasswordResetEmail(user, reset.token).catch(console.error);
+
+  return { ok: true, message: "Si le compte existe, un lien de reinitialisation a ete envoye.", reset };
+}
+
+export async function resetPassword(input) {
+  const token = await readValidAuthToken(input.token, "password_reset");
+  if (!token) return { ok: false, status: 422, error: "Lien de reinitialisation invalide ou expire." };
+  const user = await readUserInOrganization(token.userId, token.organizationId);
+  if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+  const errors = validatePassword(input.password);
+  if (errors.length > 0) return { ok: false, status: 422, errors };
+
+  await pg().transaction(async (tx) => {
+    await tx.run("UPDATE users SET password_hash = ? WHERE id = ?", [hashPassword(input.password), user.id]);
+    await tx.run("DELETE FROM auth_sessions WHERE user_id = ?", [user.id]);
+    await consumeAuthToken(tx, token.id);
+    await insertAuditEvent(tx, {
+      organizationId: user.organizationId,
+      action: "user.password_reset",
+      entityType: "user",
+      entityId: user.id,
+      summary: "Mot de passe reinitialise: " + user.email,
+      details: { userId: user.id }
+    });
+  });
+
+  return { ok: true };
+}
+
+export async function updateUser(userId, input, actor) {
+  const organizationId = actor?.organization?.id ?? actor?.user?.organizationId ?? defaultOrganizationId;
+  const current = await readUserInOrganization(userId, organizationId);
+  if (!current) return { ok: false, status: 404, error: "Utilisateur introuvable." };
+
+  const next = {
+    ...current,
+    name: String(input.name ?? current.name).trim(),
+    role: ["owner", "admin", "accountant", "viewer"].includes(input.role) ? input.role : current.role,
+    status: ["active", "disabled"].includes(input.status) ? input.status : current.status
+  };
+
+  if (current.id === actor?.user?.id && next.status !== "active") {
+    return { ok: false, status: 422, error: "Vous ne pouvez pas desactiver votre propre compte." };
+  }
+
+  const ownerCount = await readOwnerCount(organizationId);
+  if (current.role === "owner" && next.role !== "owner" && ownerCount <= 1) {
+    return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire." };
+  }
+
+  if (current.role === "owner" && next.status !== "active" && ownerCount <= 1) {
+    return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire actif." };
+  }
+
+  if (next.name.length < 2) return { ok: false, status: 422, error: "Le nom utilisateur est obligatoire." };
+
+  await pg().transaction(async (tx) => {
+    await tx.run("UPDATE users SET name = ?, status = ? WHERE id = ?", [next.name, next.status, current.id]);
+    await tx.run("UPDATE organization_users SET role = ? WHERE user_id = ? AND organization_id = ?", [next.role, current.id, organizationId]);
+  });
+
+  return { ok: true, user: publicUser(await readUserInOrganization(current.id, organizationId)) };
+}
+
+export async function enqueueJob(input) {
+  const job = {
+    id: crypto.randomUUID(),
+    organizationId: input.organizationId ?? defaultOrganizationId,
+    type: input.type,
+    status: "queued",
+    payload: input.payload,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  await pg().run("INSERT INTO jobs (id, organization_id, type, status, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [job.id, job.organizationId, job.type, job.status, JSON.stringify(job.payload), job.createdAt, job.updatedAt]);
+
+  return job;
+}
+
+export async function claimNextJob() {
+  const jobRow = await pg().one("UPDATE jobs SET status = 'running', started_at = ?, updated_at = ? WHERE id = (SELECT id FROM jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *", [new Date().toISOString(), new Date().toISOString()]);
+
+  return jobRow ? mapJob(jobRow) : null;
+}
+
+export async function completeJob(jobId, result) {
+  await pg().run("UPDATE jobs SET status = 'done', result_json = ?, finished_at = ?, updated_at = ? WHERE id = ?", [JSON.stringify(result), new Date().toISOString(), new Date().toISOString(), jobId]);
+}
+
+export async function failJob(jobId, error) {
+  await pg().run("UPDATE jobs SET status = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE id = ?", [String(error || "Unknown error"), new Date().toISOString(), new Date().toISOString(), jobId]);
+}
+
+export async function saveTextFile(input) {
+  const { join } = await import("node:path");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { rootDir } = await import("./config.js");
+  
+  const id = crypto.randomUUID();
+  const path = join("storage", id + ".json");
+  const fullPath = join(rootDir, path);
+  await mkdir(join(rootDir, "storage"), { recursive: true });
+  const buffer = Buffer.from(input.content, "utf8");
+  await writeFile(fullPath, buffer);
+
+  const file = {
+    id,
+    organizationId: input.organizationId ?? defaultOrganizationId,
+    name: input.name,
+    path,
+    mimeType: input.mimeType || "application/json",
+    size: buffer.length,
+    createdAt: new Date().toISOString()
+  };
+
+  await pg().run("INSERT INTO stored_files (id, organization_id, name, path, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [file.id, file.organizationId, file.name, file.path, file.mimeType, file.size, file.createdAt]);
+
+  return file;
+}
+
+export async function readStoredFileContent(fileId, organizationId = defaultOrganizationId) {
+  const { join } = await import("node:path");
+  const { readFile } = await import("node:fs/promises");
+  const { rootDir } = await import("./config.js");
+  
+  const row = await pg().one("SELECT * FROM stored_files WHERE id = ? AND organization_id = ?", [fileId, organizationId]);
+  if (!row) return null;
+  const file = mapStoredFile(row);
+  return {
+    file,
+    content: await readFile(join(rootDir, file.path))
+  };
+}
+
+export async function readLetteringState(accountCode = "", organizationId = defaultOrganizationId) {
+  return buildLetteringState(accountCode, organizationId);
+}
+
+export async function addManualLettering(input) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const selectedRefs = Array.isArray(input.lineRefs)
+    ? [...new Set(input.lineRefs.map((ref) => String(ref || "").trim()).filter(Boolean))]
+    : [];
+
+  if (selectedRefs.length < 2) {
+    return { ok: false, status: 422, error: "Selectionnez au moins deux lignes a lettrer." };
+  }
+
+  const rows = await readLetteringRows(organizationId);
+  const rowsByRef = new Map(rows.map((row) => [row.lineRef, row]));
+  const selectedRows = selectedRefs.map((ref) => rowsByRef.get(ref));
+  if (selectedRows.some((row) => !row)) {
+    return { ok: false, status: 422, error: "Une ligne selectionnee est introuvable." };
+  }
+
+  const firstAccountCode = selectedRows[0].accountCode;
+  if (selectedRows.some((row) => row.accountCode !== firstAccountCode)) {
+    return { ok: false, status: 422, error: "Le lettrage manuel doit porter sur un seul compte." };
+  }
+  if (selectedRows.some((row) => row.letteringCode)) {
+    return { ok: false, status: 422, error: "Une ligne selectionnee est deja lettree." };
+  }
+
+  const totals = sumLetteringRows(selectedRows);
+  if (totals.debit === 0 && totals.credit === 0) {
+    return { ok: false, status: 422, error: "Le lettrage doit contenir un montant." };
+  }
+  if (totals.debit !== totals.credit) {
+    return { ok: false, status: 422, error: "Le debit et le credit selectionnes doivent etre equilibres." };
+  }
+
+  let group;
+  await pg().transaction(async (tx) => {
+    group = await createLetteringGroup(tx, firstAccountCode, selectedRefs, "manual", organizationId);
+    await insertAuditEvent(tx, {
+      organizationId,
+      action: "lettering.manual",
+      entityType: "lettering_group",
+      entityId: group.id,
+      summary: "Lettrage manuel " + group.code + " sur " + firstAccountCode,
+      details: group
+    });
+  });
+  return { ok: true, group, rows: await buildLetteringState(firstAccountCode, organizationId) };
+}
+
+export async function addAutomaticLettering(input = {}) {
+  const organizationId = input.organizationId ?? defaultOrganizationId;
+  const requestedAccountCode = String(input.accountCode || "").trim();
+  const rows = (await readLetteringRows(organizationId))
+    .filter((row) => !row.letteringCode)
+    .filter((row) => !requestedAccountCode || row.accountCode === requestedAccountCode)
+    .filter((row) => row.debit > 0 || row.credit > 0);
+
+  const groups = [];
+  await pg().transaction(async (tx) => {
+    for (const rowsForAccount of groupRowsByAccount(rows).values()) {
+      for (const match of matchLetteringPairs(rowsForAccount)) {
+        groups.push(await createLetteringGroup(tx, match[0].accountCode, match.map((row) => row.lineRef), "automatic", organizationId));
+      }
+    }
+    if (groups.length > 0) {
+      await insertAuditEvent(tx, {
+        organizationId,
+        action: "lettering.auto",
+        entityType: "lettering_group",
+        entityId: "automatic",
+        summary: "Lettrage automatique: " + groups.length + " groupe(s)",
+        details: { groups }
+      });
+    }
+  });
+
+  return {
+    ok: true,
+    groups,
+    matchedLineCount: groups.reduce((count, group) => count + group.lineRefs.length, 0),
+    rows: await buildLetteringState(requestedAccountCode, organizationId)
+  };
+}
+
+async function readUserById(id) {
+  const row = await pg().one("SELECT * FROM users WHERE id = ?", [id]);
+  return row ? mapUser(row) : null;
+}
+
+async function readUserInOrganization(userId, organizationId) {
+  const row = await pg().one(`
+    SELECT u.*, ou.organization_id, ou.role
+    FROM users u
+    JOIN organization_users ou ON u.id = ou.user_id
+    WHERE u.id = ? AND ou.organization_id = ?
+    LIMIT 1
+  `, [userId, organizationId]);
+  return row ? mapUser(row) : null;
+}
+
+async function readUserOrganizations(userId) {
+  return pg().many(`
+    SELECT o.*, ou.role
+    FROM organizations o
+    JOIN organization_users ou ON o.id = ou.organization_id
+    WHERE ou.user_id = ?
+    ORDER BY o.created_at ASC
+  `, [userId]);
+}
+
+async function readOwnerCount(organizationId) {
+  const row = await pg().one(`
+    SELECT COUNT(*)::int AS count
+    FROM users u
+    JOIN organization_users ou ON u.id = ou.user_id
+    WHERE ou.organization_id = ? AND ou.role = 'owner' AND u.status = 'active'
+  `, [organizationId]);
+  return Number(row?.count || 0);
+}
+
+function organizationIdFromName(name) {
+  const base = String(name || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return base || "org-" + crypto.randomUUID().slice(0, 8);
+}
+
+function validateOrganization(organization) {
+  const errors = [];
+  if (organization.name.length < 2) errors.push("Le nom de l'organisation est obligatoire.");
+  if (!/^[A-Z]{2,3}$/.test(organization.country)) errors.push("Le pays de l'organisation doit etre renseigne avec un code court, ex: CI.");
+  if (!/^[A-Z]{3}$/.test(organization.currency)) errors.push("La devise de l'organisation doit etre un code a 3 lettres, ex: XOF.");
+  return errors;
+}
+
+function validateUser(user, password) {
+  return [...validateUserIdentity(user), ...validatePassword(password)];
+}
+
+function validateUserIdentity(user) {
+  const errors = [];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) errors.push("Email invalide.");
+  if (user.name.length < 2) errors.push("Le nom utilisateur est obligatoire.");
+  return errors;
+}
+
+function validatePassword(password) {
+  const errors = [];
+  if (String(password || "").length < 8) errors.push("Le mot de passe doit contenir au moins 8 caracteres.");
+  return errors;
+}
+
+async function createAuthToken(tx, user, type, hours) {
+  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + hours * 3600000).toISOString();
+  await tx.run("INSERT INTO auth_tokens (id, organization_id, user_id, type, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [crypto.randomUUID(), user.organizationId, user.id, type, hashToken(token), now.toISOString(), expiresAt]);
+  return {
+    expiresAt,
+    url: "/?" + (type === "invitation" ? "invite" : "reset") + "=" + encodeURIComponent(token),
+    token
+  };
+}
+
+async function insertUser(database, user) {
+  await database.run(`
+    INSERT INTO users
+    (id, email, name, password_hash, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (email) DO NOTHING
+  `, [
+    user.id,
+    user.email,
+    user.name,
+    user.passwordHash,
+    user.status,
+    user.createdAt ?? new Date().toISOString()
+  ]);
+
+  if (user.organizationId && user.role) {
+    await database.run(`
+      INSERT INTO organization_users (user_id, organization_id, role)
+      VALUES ((SELECT id FROM users WHERE email = ?), ?, ?)
+      ON CONFLICT (user_id, organization_id) DO UPDATE SET role = EXCLUDED.role
+    `, [user.email, user.organizationId, user.role]);
+  }
+}
+
+async function readValidAuthToken(token, type) {
+  const row = await pg().one("SELECT * FROM auth_tokens WHERE token_hash = ? AND type = ? AND used_at IS NULL AND expires_at > ? LIMIT 1", [hashToken(token), type, new Date().toISOString()]);
+  return row ? { id: row.id, organizationId: row.organization_id, userId: row.user_id } : null;
+}
+
+async function consumeAuthToken(tx, tokenId) {
+  await tx.run("UPDATE auth_tokens SET used_at = ? WHERE id = ?", [new Date().toISOString(), tokenId]);
+}
+
+async function readLetteringRows(organizationId = defaultOrganizationId) {
+  const groups = await readLetteringGroups(organizationId);
+  const letteringByLineRef = new Map();
+  for (const group of groups) {
+    for (const ref of group.lineRefs) {
+      letteringByLineRef.set(ref, group);
+    }
+  }
+
+  const rows = await pg().many(`
+    SELECT
+      journal_lines.*,
+      journal_entries.date,
+      journal_entries.reference,
+      journal_entries.description,
+      journal_entries.source,
+      journal_entries.created_at,
+      auxiliary_accounts.label AS auxiliary_label
+    FROM journal_lines
+    JOIN journal_entries ON journal_entries.id = journal_lines.entry_id
+    LEFT JOIN auxiliary_accounts ON auxiliary_accounts.code = journal_lines.auxiliary_code
+    WHERE journal_entries.organization_id = ?
+    ORDER BY journal_entries.date ASC, journal_entries.reference ASC, journal_lines.line_index ASC
+  `, [organizationId]);
+
+  return rows.map((row) => {
+    const lineRef = row.entry_id + ":" + (Number(row.line_index) + 1);
+    const group = letteringByLineRef.get(lineRef);
+    return {
+      lineRef,
+      entryId: row.entry_id,
+      organizationId: row.organization_id ?? defaultOrganizationId,
+      lineIndex: Number(row.line_index) + 1,
+      date: dateOnly(row.date),
+      reference: row.reference || fallbackReference(row),
+      source: row.source,
+      description: row.description,
+      accountCode: row.account_code,
+      accountLabel: accountLabel(row.account_code),
+      auxiliaryCode: row.auxiliary_code ?? undefined,
+      auxiliaryLabel: row.auxiliary_label ?? undefined,
+      label: row.label,
+      debit: Number(row.debit),
+      credit: Number(row.credit),
+      letteringCode: group?.code,
+      letteringMode: group?.mode,
+      letteringCreatedAt: group?.createdAt
+    };
+  });
+}
+
+async function buildLetteringState(accountCode = "", organizationId = defaultOrganizationId) {
+  const requestedAccountCode = String(accountCode || "").trim();
+  const rows = (await readLetteringRows(organizationId)).filter((row) => !requestedAccountCode || row.accountCode === requestedAccountCode);
+  return {
+    rows,
+    groups: (await readLetteringGroups(organizationId)).filter((group) => !requestedAccountCode || group.accountCode === requestedAccountCode),
+    accountCode: requestedAccountCode || undefined
+  };
+}
+
+function sumLetteringRows(rows) {
+  return rows.reduce((acc, row) => ({ debit: acc.debit + row.debit, credit: acc.credit + row.credit }), { debit: 0, credit: 0 });
+}
+
+function groupRowsByAccount(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.accountCode)) map.set(row.accountCode, []);
+    map.get(row.accountCode).push(row);
+  }
+  return map;
+}
+
+function matchLetteringPairs(rows) {
+  const matches = [];
+  const unmatched = new Set(rows);
+  for (const row1 of unmatched) {
+    unmatched.delete(row1);
+    const amount = row1.debit || row1.credit;
+    for (const row2 of unmatched) {
+      const amount2 = row2.debit || row2.credit;
+      if (amount === amount2 && ((row1.debit > 0 && row2.credit > 0) || (row1.credit > 0 && row2.debit > 0))) {
+        matches.push([row1, row2]);
+        unmatched.delete(row2);
+        break;
+      }
+    }
+  }
+  return matches;
+}
+
+async function nextLetteringCode(tx) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const row = await (tx || pg()).one("SELECT COUNT(*)::int AS count FROM lettering_groups");
+  let num = Number(row?.count || 0);
+  let code = "";
+  do {
+    code = chars[num % 26] + code;
+    num = Math.floor(num / 26) - 1;
+  } while (num >= 0);
+  return code;
+}
+
+async function createLetteringGroup(tx, accountCode, lineRefs, mode, organizationId = defaultOrganizationId) {
+  const group = {
+    id: crypto.randomUUID(),
+    organizationId,
+    code: await nextLetteringCode(tx),
+    accountCode,
+    lineRefs,
+    mode,
+    createdAt: new Date().toISOString()
+  };
+  await tx.run("INSERT INTO lettering_groups (id, organization_id, code, account_code, line_refs_json, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [group.id, group.organizationId, group.code, group.accountCode, JSON.stringify(group.lineRefs), group.mode, group.createdAt]);
+  return group;
+}
+
+
 async function readSnapshot(organizationId = defaultOrganizationId) {
   const [
     company,
@@ -576,10 +1259,11 @@ async function readOrganization(organizationId) {
 async function readAllUsers(organizationId = null) {
   if (organizationId) {
     return (await pg().many(`
-      SELECT *
-      FROM users
-      WHERE organization_id = ?
-      ORDER BY created_at ASC
+      SELECT u.*, ou.organization_id, ou.role
+      FROM users u
+      JOIN organization_users ou ON u.id = ou.user_id
+      WHERE ou.organization_id = ?
+      ORDER BY u.created_at ASC
     `, [organizationId])).map(mapUser);
   }
   return (await pg().many(`
@@ -590,7 +1274,14 @@ async function readAllUsers(organizationId = null) {
 }
 
 async function readUserByEmail(email) {
-  const row = await pg().one("SELECT * FROM users WHERE email = ?", [email]);
+  const row = await pg().one(`
+    SELECT u.*, ou.organization_id, ou.role
+    FROM users u
+    LEFT JOIN organization_users ou ON u.id = ou.user_id
+    WHERE u.email = ?
+    ORDER BY u.created_at ASC
+    LIMIT 1
+  `, [email]);
   return row ? mapUser(row) : null;
 }
 

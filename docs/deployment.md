@@ -9,6 +9,7 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 | Variable | Usage |
 | --- | --- |
 | `PORT` | Port HTTP du serveur |
+| `APP_URL` | URL publique utilisee pour generer les liens d'invitation et de reinitialisation |
 | `OHADA_DB_PATH` | Chemin SQLite du MVP local |
 | `OHADA_STORAGE_DIR` | Dossier de stockage local des exports et fichiers |
 | `OHADA_DEFAULT_ADMIN_EMAIL` | Email du premier administrateur cree au demarrage |
@@ -74,6 +75,7 @@ OHADA_DB_RUNTIME=postgres
 ## Points d'attention production
 
 - Changer `OHADA_DEFAULT_ADMIN_PASSWORD` avant tout deploiement partage.
+- Configurer `APP_URL` avec l'URL HTTPS publique avant d'envoyer des invitations.
 - Monter `OHADA_STORAGE_DIR` sur un volume persistant.
 - Sauvegarder la base quotidiennement.
 - Garder `DATABASE_URL` hors Git.

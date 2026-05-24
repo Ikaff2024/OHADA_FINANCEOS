@@ -358,7 +358,7 @@ function findPeriodForDate(periods, date) {
 }
 
 function formatMoney(amount) {
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Number(amount || 0))} FCFA`;
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Number(amount || 0));
 }
 
 function generateEntryReference(input) {
@@ -374,4 +374,86 @@ function generateEntryReference(input) {
 
 function roundMoney(amount) {
   return Math.round((Number(amount) + Number.EPSILON) * 100) / 100;
+}
+
+export function buildAgedBalance(entries, auxiliaryAccounts = [], asOfDate, accountPrefix, type) {
+  const asOf = asOfDate || new Date().toISOString().slice(0, 10);
+  
+  const linesByAux = new Map();
+  const balancesByAux = new Map();
+
+  for (const entry of entries) {
+    if (entry.date > asOf) continue;
+
+    for (const line of entry.lines) {
+      if (!line.accountCode.startsWith(accountPrefix)) continue;
+      if (!line.auxiliaryCode) continue;
+
+      if (!linesByAux.has(line.auxiliaryCode)) {
+        linesByAux.set(line.auxiliaryCode, []);
+        balancesByAux.set(line.auxiliaryCode, { debit: 0, credit: 0 });
+      }
+
+      linesByAux.get(line.auxiliaryCode).push({
+        date: entry.date,
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0)
+      });
+      
+      const bal = balancesByAux.get(line.auxiliaryCode);
+      bal.debit += Number(line.debit || 0);
+      bal.credit += Number(line.credit || 0);
+    }
+  }
+
+  const auxiliaryMap = new Map(auxiliaryAccounts.map(a => [a.code, a]));
+  const rows = [];
+
+  for (const [auxCode, lines] of linesByAux.entries()) {
+    const bal = balancesByAux.get(auxCode);
+    const balance = type === 'AR' ? (bal.debit - bal.credit) : (bal.credit - bal.debit);
+    
+    let remainingBalance = roundMoney(balance);
+    const buckets = { current: 0, b30: 0, b60: 0, b90: 0, b90plus: 0 };
+    
+    if (remainingBalance > 0) {
+      lines.sort((a, b) => b.date.localeCompare(a.date));
+      
+      for (const line of lines) {
+        if (remainingBalance <= 0) break;
+        
+        const lineAmount = type === 'AR' ? line.debit : line.credit;
+        if (lineAmount <= 0) continue;
+        
+        const allocated = Math.min(remainingBalance, lineAmount);
+        remainingBalance = roundMoney(remainingBalance - allocated);
+        
+        const ageDays = (new Date(asOf) - new Date(line.date)) / (1000 * 60 * 60 * 24);
+        
+        if (ageDays <= 0) buckets.current += allocated;
+        else if (ageDays <= 30) buckets.b30 += allocated;
+        else if (ageDays <= 60) buckets.b60 += allocated;
+        else if (ageDays <= 90) buckets.b90 += allocated;
+        else buckets.b90plus += allocated;
+      }
+    }
+
+    const aux = auxiliaryMap.get(auxCode) || { label: "Auxiliaire inconnu", accountCode: accountPrefix };
+
+    rows.push({
+      code: auxCode,
+      label: aux.label,
+      accountCode: aux.accountCode,
+      total: roundMoney(balance),
+      current: roundMoney(buckets.current),
+      b30: roundMoney(buckets.b30),
+      b60: roundMoney(buckets.b60),
+      b90: roundMoney(buckets.b90),
+      b90plus: roundMoney(buckets.b90plus)
+    });
+  }
+
+  return rows
+    .filter(row => row.total !== 0)
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode, "fr") || a.code.localeCompare(b.code, "fr"));
 }

@@ -7,6 +7,7 @@ import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.
 import { config, rootDir } from "./config.js";
 import * as postgresStore from "./postgresStore.js";
 import { createSessionToken, hashPassword, hashToken, publicUser, verifyPassword } from "./security.js";
+import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
 
 const legacyJsonPath = join(rootDir, "data", "db.json");
 const storageDir = config.storageDir;
@@ -105,11 +106,14 @@ export async function loginUser(input) {
     VALUES (?, ?, ?, ?)
   `).run(hashToken(token), user.id, now.toISOString(), expiresAt);
 
+  const auth = await readAuthContext(token);
+  
   return {
     ok: true,
     token,
-    user: publicUser(user),
-    organization: readOrganization(db, user.organizationId),
+    user: auth.user,
+    organization: auth.organization,
+    availableOrganizations: auth.availableOrganizations,
     expiresAt
   };
 }
@@ -121,8 +125,8 @@ export async function logoutUser(token) {
   return { ok: true };
 }
 
-export async function readAuthContext(token) {
-  if (usePostgresRuntime()) return postgresStore.readAuthContext(token);
+export async function readAuthContext(token, activeOrganizationId = null) {
+  if (usePostgresRuntime()) return postgresStore.readAuthContext(token, activeOrganizationId);
   if (!token) return null;
   const db = await getDatabase();
   const row = db.prepare(`
@@ -134,10 +138,25 @@ export async function readAuthContext(token) {
   `).get(hashToken(token), new Date().toISOString());
   if (!row) return null;
 
-  const user = mapUser(row);
+  const baseUser = mapUser(row);
+  const organizations = db.prepare(`
+    SELECT o.*, ou.role
+    FROM organizations o
+    JOIN organization_users ou ON o.id = ou.organization_id
+    WHERE ou.user_id = ?
+  `).all(baseUser.id);
+
+  if (organizations.length === 0) return null;
+
+  const orgIdToUse = activeOrganizationId && organizations.find(o => o.id === activeOrganizationId) ? activeOrganizationId : organizations[0].id;
+  const organizationContext = organizations.find(o => o.id === orgIdToUse);
+
+  const user = { ...baseUser, organizationId: organizationContext.id, role: organizationContext.role };
+
   return {
     user: publicUser(user),
-    organization: readOrganization(db, user.organizationId)
+    organization: readOrganization(db, user.organizationId),
+    availableOrganizations: organizations.map(o => ({ id: o.id, name: o.name, role: o.role }))
   };
 }
 
@@ -148,6 +167,7 @@ export async function readOrganizations() {
 }
 
 export async function addOrganization(input) {
+  if (usePostgresRuntime()) return postgresStore.addOrganization(input);
   const db = await getDatabase();
   const now = new Date().toISOString();
   const id = organizationIdFromName(input.name);
@@ -228,6 +248,7 @@ export async function readUsers(organizationId = defaultOrganizationId) {
 }
 
 export async function addUser(input) {
+  if (usePostgresRuntime()) return postgresStore.addUser(input);
   const db = await getDatabase();
   const organizationId = String(input.organizationId || seed.company.id).trim();
   const organization = readOrganization(db, organizationId);
@@ -244,19 +265,31 @@ export async function addUser(input) {
     createdAt: new Date().toISOString()
   };
 
+  const existingUser = readUserByEmail(db, user.email);
+  if (existingUser) {
+    const existingRole = db.prepare("SELECT role FROM organization_users WHERE user_id = ? AND organization_id = ?").get(existingUser.id, organizationId);
+    if (existingRole) return { ok: false, status: 409, error: "Cet utilisateur est deja dans l'organisation." };
+    user.id = existingUser.id;
+    user.passwordHash = existingUser.passwordHash;
+    user.status = existingUser.status;
+    user.createdAt = existingUser.createdAt;
+  }
+
   const errors = validateUser(user, input.password);
-  if (errors.length > 0) return { ok: false, status: 422, errors };
+  if (!existingUser && errors.length > 0) return { ok: false, status: 422, errors };
 
   try {
     insertUser(db, user);
-  } catch {
-    return { ok: false, status: 409, error: "Cet email existe deja." };
+  } catch (error) {
+    console.error(error);
+    return { ok: false, status: 500, error: "Erreur interne lors de l'ajout." };
   }
 
   return { ok: true, user: publicUser(user) };
 }
 
 export async function inviteUser(input) {
+  if (usePostgresRuntime()) return postgresStore.inviteUser(input);
   const db = await getDatabase();
   const organizationId = String(input.organizationId || seed.company.id).trim();
   const organization = readOrganization(db, organizationId);
@@ -274,7 +307,16 @@ export async function inviteUser(input) {
   };
   const errors = validateUserIdentity(user);
   if (errors.length > 0) return { ok: false, status: 422, errors };
-  if (readUserByEmail(db, user.email)) return { ok: false, status: 409, error: "Cet email existe deja." };
+
+  const existingUser = readUserByEmail(db, user.email);
+  if (existingUser) {
+    const existingRole = db.prepare("SELECT role FROM organization_users WHERE user_id = ? AND organization_id = ?").get(existingUser.id, organizationId);
+    if (existingRole) return { ok: false, status: 409, error: "Cet utilisateur est deja dans l'organisation." };
+    user.id = existingUser.id;
+    user.passwordHash = existingUser.passwordHash;
+    user.status = existingUser.status;
+    user.createdAt = existingUser.createdAt;
+  }
 
   let invitation;
   withTransaction(db, () => {
@@ -290,14 +332,18 @@ export async function inviteUser(input) {
     });
   });
 
+  // Envoi de l'email asynchrone (ne bloque pas la reponse)
+  sendInvitationEmail(user, invitation.token).catch(console.error);
+
   return { ok: true, user: publicUser(user), invitation };
 }
 
 export async function acceptInvitation(input) {
+  if (usePostgresRuntime()) return postgresStore.acceptInvitation(input);
   const db = await getDatabase();
   const token = readValidAuthToken(db, input.token, "invitation");
   if (!token) return { ok: false, status: 422, error: "Invitation invalide ou expiree." };
-  const user = readUserById(db, token.userId);
+  const user = readUserInOrganization(db, token.userId, token.organizationId);
   if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
   const errors = validatePassword(input.password);
   if (errors.length > 0) return { ok: false, status: 422, errors };
@@ -319,8 +365,9 @@ export async function acceptInvitation(input) {
 }
 
 export async function requestPasswordReset(input) {
+  if (usePostgresRuntime()) return postgresStore.requestPasswordReset(input);
   const db = await getDatabase();
-  const user = readUserByEmail(db, normalizeEmail(input.email));
+  const user = readUserDefaultOrganization(db, normalizeEmail(input.email));
   if (!user || user.status !== "active") {
     return { ok: true, message: "Si le compte existe, un lien de reinitialisation est prepare." };
   }
@@ -334,14 +381,17 @@ export async function requestPasswordReset(input) {
     summary: `Reinitialisation demandee: ${user.email}`,
     details: { expiresAt: reset.expiresAt }
   });
-  return { ok: true, message: "Lien de reinitialisation prepare.", reset };
+  sendPasswordResetEmail(user, reset.token).catch(console.error);
+
+  return { ok: true, message: "Si le compte existe, un lien de reinitialisation a ete envoye.", reset };
 }
 
 export async function resetPassword(input) {
+  if (usePostgresRuntime()) return postgresStore.resetPassword(input);
   const db = await getDatabase();
   const token = readValidAuthToken(db, input.token, "password_reset");
   if (!token) return { ok: false, status: 422, error: "Lien de reinitialisation invalide ou expire." };
-  const user = readUserById(db, token.userId);
+  const user = readUserInOrganization(db, token.userId, token.organizationId);
   if (!user) return { ok: false, status: 404, error: "Utilisateur introuvable." };
   const errors = validatePassword(input.password);
   if (errors.length > 0) return { ok: false, status: 422, errors };
@@ -364,8 +414,10 @@ export async function resetPassword(input) {
 }
 
 export async function updateUser(userId, input, actor) {
+  if (usePostgresRuntime()) return postgresStore.updateUser(userId, input, actor);
   const db = await getDatabase();
-  const current = readUserById(db, userId);
+  const organizationId = actor?.organization?.id ?? actor?.user?.organizationId ?? defaultOrganizationId;
+  const current = readUserInOrganization(db, userId, organizationId);
   if (!current) return { ok: false, status: 404, error: "Utilisateur introuvable." };
 
   const next = {
@@ -379,26 +431,35 @@ export async function updateUser(userId, input, actor) {
     return { ok: false, status: 422, error: "Vous ne pouvez pas desactiver votre propre compte." };
   }
 
-  if (current.role === "owner" && next.role !== "owner" && readOwnerCount(db, current.organizationId) <= 1) {
+  if (current.role === "owner" && next.role !== "owner" && readOwnerCount(db, organizationId) <= 1) {
     return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire." };
   }
 
-  if (current.role === "owner" && next.status !== "active" && readOwnerCount(db, current.organizationId) <= 1) {
+  if (current.role === "owner" && next.status !== "active" && readOwnerCount(db, organizationId) <= 1) {
     return { ok: false, status: 422, error: "Une organisation doit conserver au moins un proprietaire actif." };
   }
 
   if (next.name.length < 2) return { ok: false, status: 422, error: "Le nom utilisateur est obligatoire." };
 
-  db.prepare(`
-    UPDATE users
-    SET name = ?, role = ?, status = ?
-    WHERE id = ?
-  `).run(next.name, next.role, next.status, current.id);
+  withTransaction(db, () => {
+    db.prepare(`
+      UPDATE users
+      SET name = ?, status = ?
+      WHERE id = ?
+    `).run(next.name, next.status, current.id);
 
-  return { ok: true, user: publicUser(readUserById(db, current.id)) };
+    db.prepare(`
+      UPDATE organization_users
+      SET role = ?
+      WHERE user_id = ? AND organization_id = ?
+    `).run(next.role, current.id, organizationId);
+  });
+
+  return { ok: true, user: publicUser(readUserInOrganization(db, current.id, organizationId)) };
 }
 
 export async function enqueueJob(input) {
+  if (usePostgresRuntime()) return postgresStore.enqueueJob(input);
   const db = await getDatabase();
   const job = {
     id: crypto.randomUUID(),
@@ -430,6 +491,7 @@ export async function readJobs(organizationId = defaultOrganizationId) {
 }
 
 export async function claimNextJob() {
+  if (usePostgresRuntime()) return postgresStore.claimNextJob();
   const db = await getDatabase();
   const row = db.prepare(`
     SELECT *
@@ -452,6 +514,7 @@ export async function claimNextJob() {
 }
 
 export async function completeJob(jobId, result) {
+  if (usePostgresRuntime()) return postgresStore.completeJob(jobId, result);
   const db = await getDatabase();
   const now = new Date().toISOString();
   db.prepare(`
@@ -463,6 +526,7 @@ export async function completeJob(jobId, result) {
 }
 
 export async function failJob(jobId, error) {
+  if (usePostgresRuntime()) return postgresStore.failJob(jobId, error);
   const db = await getDatabase();
   const now = new Date().toISOString();
   db.prepare(`
@@ -474,6 +538,7 @@ export async function failJob(jobId, error) {
 }
 
 export async function saveTextFile(input) {
+  if (usePostgresRuntime()) return postgresStore.saveTextFile(input);
   const db = await getDatabase();
   const name = String(input.name || "").trim();
   const content = String(input.content ?? "");
@@ -501,6 +566,7 @@ export async function saveTextFile(input) {
 }
 
 export async function readStoredFileContent(fileId, organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readStoredFileContent(fileId, organizationId);
   const db = await getDatabase();
   const row = db.prepare("SELECT * FROM stored_files WHERE id = ? AND organization_id = ?").get(fileId, organizationId);
   if (!row) return null;
@@ -857,11 +923,13 @@ export async function addSubscriptionBatch(batch, entries) {
 }
 
 export async function readLetteringState(accountCode = "", organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readLetteringState(accountCode, organizationId);
   const db = await getDatabase();
   return buildLetteringState(db, accountCode, organizationId);
 }
 
 export async function addManualLettering(input) {
+  if (usePostgresRuntime()) return postgresStore.addManualLettering(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const selectedRefs = Array.isArray(input.lineRefs)
@@ -911,6 +979,7 @@ export async function addManualLettering(input) {
 }
 
 export async function addAutomaticLettering(input = {}) {
+  if (usePostgresRuntime()) return postgresStore.addAutomaticLettering(input);
   const db = await getDatabase();
   const organizationId = input.organizationId ?? defaultOrganizationId;
   const requestedAccountCode = String(input.accountCode || "").trim();
@@ -1066,6 +1135,7 @@ async function getDatabase() {
   database = new DatabaseSync(dbPath);
   database.exec("PRAGMA foreign_keys = ON");
   createSchema(database);
+  migrateOrganizationUsers(database);
   await seedIfEmpty(database);
   ensureDefaultOrganizationAndUser(database);
   ensureCompanyPeriod(database);
@@ -1096,13 +1166,18 @@ function createSchema(db) {
 
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL REFERENCES organizations(id),
       email TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'accountant', 'viewer')),
       status TEXT NOT NULL CHECK(status IN ('active', 'disabled')),
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS organization_users (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'accountant', 'viewer')),
+      PRIMARY KEY (user_id, organization_id)
     );
 
     CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -1271,7 +1346,8 @@ function createSchema(db) {
       created_at TEXT NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_organization_users_user_id ON organization_users(user_id);
+    CREATE INDEX IF NOT EXISTS idx_organization_users_organization_id ON organization_users(organization_id);
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_token_hash ON auth_tokens(token_hash);
@@ -1400,6 +1476,23 @@ function readCompany(db, organizationId = defaultOrganizationId) {
   };
 }
 
+function migrateOrganizationUsers(db) {
+  try {
+    const columns = db.prepare("PRAGMA table_info(users)").all();
+    const hasOrgId = columns.some(c => c.name === 'organization_id');
+    const hasRole = columns.some(c => c.name === 'role');
+    
+    if (hasOrgId && hasRole) {
+      db.prepare(`
+        INSERT OR IGNORE INTO organization_users (user_id, organization_id, role)
+        SELECT id, organization_id, role FROM users WHERE organization_id IS NOT NULL AND role IS NOT NULL
+      `).run();
+    }
+  } catch (error) {
+    console.error("Migration error:", error);
+  }
+}
+
 function ensureDefaultOrganizationAndUser(db) {
   const company = readCompany(db);
   const organizationCount = Number(db.prepare("SELECT COUNT(*) AS count FROM organizations").get().count);
@@ -1444,16 +1537,17 @@ function readOrganization(db, organizationId) {
 function readAllUsers(db, organizationId = null) {
   if (organizationId) {
     return db.prepare(`
-      SELECT *
-      FROM users
-      WHERE organization_id = ?
-      ORDER BY created_at ASC
+      SELECT u.*, ou.organization_id, ou.role
+      FROM users u
+      JOIN organization_users ou ON u.id = ou.user_id
+      WHERE ou.organization_id = ?
+      ORDER BY u.created_at ASC
     `).all(organizationId).map(mapUser);
   }
   return db.prepare(`
-    SELECT *
-    FROM users
-    ORDER BY created_at ASC
+    SELECT u.*
+    FROM users u
+    ORDER BY u.created_at ASC
   `).all().map(mapUser);
 }
 
@@ -1467,11 +1561,35 @@ function readUserById(db, userId) {
   return row ? mapUser(row) : null;
 }
 
+function readUserInOrganization(db, userId, organizationId) {
+  const row = db.prepare(`
+    SELECT u.*, ou.organization_id, ou.role
+    FROM users u
+    JOIN organization_users ou ON u.id = ou.user_id
+    WHERE u.id = ? AND ou.organization_id = ?
+    LIMIT 1
+  `).get(userId, organizationId);
+  return row ? mapUser(row) : null;
+}
+
+function readUserDefaultOrganization(db, email) {
+  const row = db.prepare(`
+    SELECT u.*, ou.organization_id, ou.role
+    FROM users u
+    JOIN organization_users ou ON u.id = ou.user_id
+    WHERE u.email = ?
+    ORDER BY u.created_at ASC
+    LIMIT 1
+  `).get(email);
+  return row ? mapUser(row) : null;
+}
+
 function readOwnerCount(db, organizationId) {
   return Number(db.prepare(`
     SELECT COUNT(*) AS count
-    FROM users
-    WHERE organization_id = ? AND role = 'owner' AND status = 'active'
+    FROM users u
+    JOIN organization_users ou ON u.id = ou.user_id
+    WHERE ou.organization_id = ? AND ou.role = 'owner' AND u.status = 'active'
   `).get(organizationId).count);
 }
 
@@ -2031,18 +2149,25 @@ function insertOrganization(db, organization) {
 function insertUser(db, user) {
   db.prepare(`
     INSERT INTO users
-    (id, organization_id, email, name, password_hash, role, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    (id, email, name, password_hash, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(email) DO NOTHING
   `).run(
     user.id,
-    user.organizationId,
     user.email,
     user.name,
     user.passwordHash,
-    user.role,
     user.status,
     user.createdAt ?? new Date().toISOString()
   );
+
+  if (user.organizationId && user.role) {
+    db.prepare(`
+      INSERT INTO organization_users (user_id, organization_id, role)
+      VALUES ((SELECT id FROM users WHERE email = ?), ?, ?)
+      ON CONFLICT(user_id, organization_id) DO UPDATE SET role = excluded.role
+    `).run(user.email, user.organizationId, user.role);
+  }
 }
 
 function insertPeriod(db, period) {

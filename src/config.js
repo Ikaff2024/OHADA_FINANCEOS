@@ -15,7 +15,15 @@ export const config = {
   authRateLimitWindowMs: Number(process.env.OHADA_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   authRateLimitMaxAttempts: Number(process.env.OHADA_AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10),
   corsAllowedOrigins: String(process.env.OHADA_CORS_ALLOWED_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean),
-  databaseUrl: process.env.DATABASE_URL || ""
+  databaseUrl: process.env.DATABASE_URL || "",
+  appUrl: process.env.APP_URL || "",
+  smtp: {
+    host: process.env.SMTP_HOST || "",
+    port: Number(process.env.SMTP_PORT || 587),
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || "noreply@financeos.com"
+  }
 };
 
 export const publicConfig = {
