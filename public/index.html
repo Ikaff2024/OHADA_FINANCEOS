@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OHADA FinanceOS MVP</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260516-chat-ai" />
   </head>
   <body>
     <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
@@ -61,8 +61,9 @@
         </div>
 
         <div class="firm-card">
-          <div class="firm-label">Entreprise pilote</div>
-          <div class="firm-name" id="company-name">Demo PME OHADA</div>
+          <div class="firm-label">Dossier Actif</div>
+          <select id="organization-selector" style="width: 100%; margin-top: 6px; padding: 6px; border-radius: 6px; background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; font-family: inherit;">
+          </select>
           <div class="firm-meta" id="company">Chargement...</div>
         </div>
 
@@ -74,14 +75,20 @@
           </select>
         </label>
 
+        <div class="nav-label">Pilotage</div>
+        <button class="nav-item active" type="button" data-view-target="dashboard"><span class="nav-icon">*</span> Tableau de bord</button>
+
         <div class="nav-label">Travail courant</div>
-        <button class="nav-item active" type="button" data-view-target="dashboard"><span class="nav-icon">*</span> Dashboard / Tresorerie</button>
+        <button class="nav-item" type="button" data-view-target="entry"><span class="nav-icon">+</span> Saisie d'ecritures</button>
         <button class="nav-item" type="button" data-view-target="journal"><span class="nav-icon">o</span> Journal <span class="badge" id="entry-count">0</span></button>
         <button class="nav-item" type="button" data-view-target="ledger"><span class="nav-icon">|</span> Grand livre</button>
         <button class="nav-item" type="button" data-view-target="lettering"><span class="nav-icon">x</span> Lettrage</button>
         <button class="nav-item" type="button" data-view-target="chart"><span class="nav-icon">#</span> Plan comptable</button>
         <button class="nav-item" type="button" data-view-target="auxiliaries"><span class="nav-icon">+</span> Auxiliaires</button>
         <button class="nav-item" type="button" data-view-target="reports"><span class="nav-icon">=</span> Etats financiers</button>
+        <button class="nav-item" type="button" data-view-target="taxes"><span class="nav-icon">%</span> Déclaration TVA</button>
+        <button class="nav-item" type="button" data-view-target="aged-clients"><span class="nav-icon">%</span> Balance agee clients</button>
+        <button class="nav-item" type="button" data-view-target="aged-suppliers"><span class="nav-icon">%</span> Balance agee four.</button>
         <button class="nav-item" type="button" data-view-target="audit"><span class="nav-icon">!</span> Audit</button>
 
         <div class="nav-label">Production</div>
@@ -121,28 +128,71 @@
         </header>
 
         <section class="view active" data-view="dashboard">
+          <!-- Le titre est deja gere par le header global de l'application -->
+
           <section class="kpis">
             <article class="kpi featured">
-              <div class="kpi-label">Actif total</div>
-              <div class="kpi-value" id="assets">-</div>
-              <div class="kpi-delta">Selon bilan simplifie</div>
+              <div class="kpi-label">Tresorerie</div>
+              <div class="kpi-value" id="dashboard-cash">-</div>
+              <div class="kpi-delta">Comptes de classe 5</div>
             </article>
             <article class="kpi">
-              <div class="kpi-label">Resultat</div>
-              <div class="kpi-value" id="net-income">-</div>
+              <div class="kpi-label">Chiffre d'affaires</div>
+              <div class="kpi-value" id="dashboard-sales">-</div>
+              <div class="kpi-delta">Comptes de classe 7</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Charges</div>
+              <div class="kpi-value" id="dashboard-expenses">-</div>
+              <div class="kpi-delta">Comptes de classe 6</div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-label">Resultat net</div>
+              <div class="kpi-value" id="dashboard-net-income">-</div>
               <div class="kpi-delta">Produits moins charges</div>
             </article>
-            <article class="kpi">
-              <div class="kpi-label">Controle bilan</div>
-              <div class="kpi-value" id="difference">-</div>
-              <div class="kpi-delta">Ecart actif - passif</div>
+          </section>
+
+          <section class="dashboard-widgets">
+            <article class="panel widget-panel sig-widget">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Indicateurs OHADA</p>
+                  <h2>Soldes Intermediaires (SIG)</h2>
+                </div>
+              </div>
+              <div class="sig-list" id="sig-breakdown">
+                <div class="empty-state">Calcul en cours...</div>
+              </div>
             </article>
-            <article class="kpi">
-              <div class="kpi-label">Ecritures</div>
-              <div class="kpi-value" id="entry-total">0</div>
-              <div class="kpi-delta">Journal local</div>
+            <article class="panel widget-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Analyse (Classe 6)</p>
+                  <h2>Repartition des Charges</h2>
+                </div>
+              </div>
+              <div class="chart-container" id="expense-breakdown-chart">
+                <div class="empty-state">Aucune donnee.</div>
+              </div>
+            </article>
+
+            <article class="panel widget-panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">Analyse (Classe 7)</p>
+                  <h2>Repartition des Produits</h2>
+                </div>
+              </div>
+              <div class="chart-container" id="revenue-breakdown-chart">
+                <div class="empty-state">Aucune donnee.</div>
+              </div>
             </article>
           </section>
+        </section>
+
+        <section class="view" data-view="entry">
+
 
           <section class="work-grid dashboard-grid">
             <article class="panel entry-panel">
@@ -155,7 +205,7 @@
               </div>
 
               <form id="entry-form">
-                <div class="form-row">
+                <div class="form-row triple">
                   <label>
                     Date
                     <input name="date" type="date" required />
@@ -163,6 +213,10 @@
                   <label>
                     Reference
                     <input name="reference" type="text" placeholder="Ex: FAC-2026-001" required />
+                  </label>
+                  <label>
+                    Journal
+                    <select name="source" id="entry-journal"></select>
                   </label>
                 </div>
 
@@ -172,19 +226,13 @@
                     <input name="description" type="text" placeholder="Ex: Vente services client" required />
                   </label>
                 </div>
-                <div class="form-row single">
-                  <label>
-                    Journal
-                    <select name="source" id="entry-journal"></select>
-                  </label>
-                </div>
 
                 <div class="entry-balance-tools">
                   <label class="switch-line">
                     <input id="auto-balance" type="checkbox" checked />
                     <span>Equilibrage auto</span>
                   </label>
-                  <div class="balance-status" id="entry-balance-status">Debit 0 FCFA / Credit 0 FCFA</div>
+                  <div class="balance-status" id="entry-balance-status">Debit 0 / Credit 0</div>
                   <button type="button" class="btn" id="balance-entry">Equilibrer</button>
                 </div>
 
@@ -557,7 +605,7 @@
         </section>
 
         <section class="view" data-view="auxiliaries">
-          <section class="work-grid imports-grid">
+          <section class="work-grid auxiliaries-grid">
             <article class="panel chart-panel">
               <div class="section-title">
                 <div>
@@ -588,46 +636,74 @@
               <div class="message" id="auxiliary-message"></div>
             </article>
 
-            <article class="panel balance-panel">
-              <div class="section-title">
-                <div>
-                <p class="eyebrow">Balance</p>
-                <h2>Balance auxiliaire</h2>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <article class="panel balance-panel" id="panel-auxiliary-balance">
+                <div class="section-title">
+                  <div>
+                  <p class="eyebrow">Balance</p>
+                  <h2>Balance auxiliaire</h2>
+                </div>
+                <button class="btn" type="button" id="print-auxiliary-balance">Imprimer</button>
               </div>
-              <button class="btn" type="button" id="print-auxiliary-balance">Imprimer</button>
+                <div class="journal-tools chart-tools">
+                  <input id="auxiliary-balance-search" type="search" placeholder="Rechercher auxiliaire, compte..." />
+                  <label class="period-field">
+                    Du
+                    <input type="date" data-report-period="from" />
+                  </label>
+                  <label class="period-field">
+                    Au
+                    <input type="date" data-report-period="to" />
+                  </label>
+                  <select id="auxiliary-balance-party-filter">
+                    <option value="all">Tous tiers</option>
+                    <option value="clients">Clients</option>
+                    <option value="suppliers">Fournisseurs</option>
+                  </select>
+                </div>
+                <div class="totals-strip" id="auxiliary-balance-totals"></div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Auxiliaire</th>
+                        <th>Compte</th>
+                        <th>Debit</th>
+                        <th>Credit</th>
+                        <th>Solde</th>
+                      </tr>
+                    </thead>
+                    <tbody id="auxiliary-balance"></tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="panel balance-panel" id="panel-auxiliary-ledger">
+                <div class="section-title">
+                  <div>
+                  <p class="eyebrow">Details</p>
+                  <h2>Grand Livre des Tiers</h2>
+                </div>
+                <button class="btn" type="button" id="print-auxiliary-ledger">Imprimer</button>
+              </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Reference</th>
+                        <th>Compte</th>
+                        <th>Auxiliaire</th>
+                        <th>Libelle</th>
+                        <th class="amount">Debit</th>
+                        <th class="amount">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody id="auxiliary-ledger"></tbody>
+                  </table>
+                </div>
+              </article>
             </div>
-              <div class="journal-tools chart-tools">
-                <input id="auxiliary-balance-search" type="search" placeholder="Rechercher auxiliaire, compte..." />
-                <label class="period-field">
-                  Du
-                  <input type="date" data-report-period="from" />
-                </label>
-                <label class="period-field">
-                  Au
-                  <input type="date" data-report-period="to" />
-                </label>
-                <select id="auxiliary-balance-party-filter">
-                  <option value="all">Tous tiers</option>
-                  <option value="clients">Clients</option>
-                  <option value="suppliers">Fournisseurs</option>
-                </select>
-              </div>
-              <div class="totals-strip" id="auxiliary-balance-totals"></div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Auxiliaire</th>
-                      <th>Compte</th>
-                      <th>Debit</th>
-                      <th>Credit</th>
-                      <th>Solde</th>
-                    </tr>
-                  </thead>
-                  <tbody id="auxiliary-balance"></tbody>
-                </table>
-              </div>
-            </article>
           </section>
         </section>
 
@@ -671,6 +747,48 @@
             </div>
           </article>
 
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">SYSCOHADA</p>
+                <h2>Bilan</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Actif</th>
+                    <th class="amount">Montant</th>
+                    <th>Passif</th>
+                    <th class="amount">Montant</th>
+                  </tr>
+                </thead>
+                <tbody id="syscohada-balance-sheet"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">SYSCOHADA</p>
+                <h2>Compte de Résultat</h2>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Indicateur</th>
+                    <th class="amount">Montant</th>
+                  </tr>
+                </thead>
+                <tbody id="syscohada-income-statement"></tbody>
+              </table>
+            </div>
+          </article>
+
           <article class="panel closing-panel reports-closing">
             <div class="section-title">
               <div>
@@ -702,6 +820,109 @@
                   </tr>
                 </thead>
                 <tbody id="jobs-table"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="aged-clients">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Etats</p>
+                <h2>Balance agee clients</h2>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="aged-balance-clients-search" type="search" placeholder="Rechercher code, libelle client..." />
+              <label class="period-field">
+                Au
+                <input type="date" data-report-period="to" />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Client</th>
+                    <th>Compte</th>
+                    <th class="amount">Total</th>
+                    <th class="amount">Non echu</th>
+                    <th class="amount">0-30j</th>
+                    <th class="amount">31-60j</th>
+                    <th class="amount">61-90j</th>
+                    <th class="amount">&gt; 90j</th>
+                  </tr>
+                </thead>
+                <tbody id="aged-balance-clients"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="aged-suppliers">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">Etats</p>
+                <h2>Balance agee fournisseurs</h2>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <input id="aged-balance-suppliers-search" type="search" placeholder="Rechercher code, libelle fournisseur..." />
+              <label class="period-field">
+                Au
+                <input type="date" data-report-period="to" />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fournisseur</th>
+                    <th>Compte</th>
+                    <th class="amount">Total</th>
+                    <th class="amount">Non echu</th>
+                    <th class="amount">0-30j</th>
+                    <th class="amount">31-60j</th>
+                    <th class="amount">61-90j</th>
+                    <th class="amount">&gt; 90j</th>
+                  </tr>
+                </thead>
+                <tbody id="aged-balance-suppliers"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" data-view="taxes">
+          <article class="panel balance-panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">TVA</p>
+                <h2>Déclaration de TVA</h2>
+              </div>
+            </div>
+            <div class="journal-tools chart-tools">
+              <label class="period-field">
+                Du
+                <input type="date" data-report-period="from" />
+              </label>
+              <label class="period-field">
+                Au
+                <input type="date" data-report-period="to" />
+              </label>
+            </div>
+            <div class="totals-strip" id="vat-totals"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rubrique</th>
+                    <th class="amount">Montant</th>
+                  </tr>
+                </thead>
+                <tbody id="vat-declaration"></tbody>
               </table>
             </div>
           </article>
@@ -1006,9 +1227,30 @@
       </div>
     </template>
 
+    <div id="ai-chat-widget">
+      <button id="ai-chat-toggle" aria-label="Ouvrir l'assistant IA">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-message-circle"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+      </button>
+      <div id="ai-chat-window" class="hidden">
+        <div class="chat-header">
+          <h3>Copilot OHADA</h3>
+          <button id="ai-chat-close">&times;</button>
+        </div>
+        <div id="ai-chat-messages">
+          <div class="message ai">Bonjour ! Je suis l'assistant IA base sur le Guide d'application du SYSCOHADA. Posez-moi vos questions comptables.</div>
+        </div>
+        <form id="ai-chat-form">
+          <input type="text" id="ai-chat-input" placeholder="Poser une question..." autocomplete="off" required />
+          <button type="submit" id="ai-chat-submit">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+
     <datalist id="account-options"></datalist>
     <datalist id="auxiliary-options"></datalist>
 
-    <script type="module" src="/app.js?v=20260510-journals-accounts"></script>
+    <script type="module" src="/app.js?v=20260523-chat-ai-fix"></script>
   </body>
 </html>

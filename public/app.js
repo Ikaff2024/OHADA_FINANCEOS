@@ -21,12 +21,16 @@ const state = {
     auxiliaryBalance: [],
     balanceSheet: null,
     incomeStatement: null,
-    closingControls: null
+    closingControls: null,
+    agedBalanceClients: [],
+    agedBalanceSuppliers: []
   },
   auth: {
     token: localStorage.getItem("ohada-auth-token") || "",
     user: null,
-    organization: null
+    organization: null,
+    activeOrganizationId: localStorage.getItem("ohada-active-org") || null,
+    availableOrganizations: []
   },
   booted: false
 };
@@ -35,8 +39,13 @@ const nativeFetch = window.fetch.bind(window);
 window.fetch = (input, init = {}) => {
   const url = typeof input === "string" ? input : input?.url ?? "";
   const headers = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
-  if (isApiRequest(url) && state.auth.token && !headers.has("authorization")) {
-    headers.set("authorization", `Bearer ${state.auth.token}`);
+  if (isApiRequest(url)) {
+    if (state.auth.token && !headers.has("authorization")) {
+      headers.set("authorization", `Bearer ${state.auth.token}`);
+    }
+    if (state.auth.activeOrganizationId && !headers.has("x-organization-id")) {
+      headers.set("x-organization-id", state.auth.activeOrganizationId);
+    }
   }
   return nativeFetch(input, { ...init, headers });
 };
@@ -98,11 +107,14 @@ const balanceExportFormatEl = document.querySelector("#balance-export-format");
 const exportBalanceButton = document.querySelector("#export-balance");
 const printBalanceButton = document.querySelector("#print-balance");
 const printAuxiliaryBalanceButton = document.querySelector("#print-auxiliary-balance");
+const printAuxiliaryLedgerButton = document.querySelector("#print-auxiliary-ledger");
 const queueFinancialExportButton = document.querySelector("#queue-financial-export");
 const jobsMessageEl = document.querySelector("#jobs-message");
 const jobsTableEl = document.querySelector("#jobs-table");
 const auxiliaryBalanceSearchEl = document.querySelector("#auxiliary-balance-search");
 const auxiliaryBalancePartyFilterEl = document.querySelector("#auxiliary-balance-party-filter");
+const agedBalanceClientsSearchEl = document.querySelector("#aged-balance-clients-search");
+const agedBalanceSuppliersSearchEl = document.querySelector("#aged-balance-suppliers-search");
 const reportPeriodEls = document.querySelectorAll("[data-report-period]");
 const reportPeriodSelectEl = document.querySelector("#report-period-select");
 const createNextPeriodButton = document.querySelector("#create-next-period");
@@ -186,10 +198,13 @@ balanceSearchEl.addEventListener("input", renderTrialBalance);
 balanceFormatEl.addEventListener("change", renderTrialBalance);
 exportBalanceButton.addEventListener("click", exportTrialBalance);
 printBalanceButton.addEventListener("click", () => printState(balancePrintTitle()));
-printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliaryBalancePrintTitle()));
+printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliaryBalancePrintTitle(), "auxiliary-balance"));
+printAuxiliaryLedgerButton.addEventListener("click", () => printState(auxiliaryLedgerPrintTitle(), "auxiliary-ledger"));
 queueFinancialExportButton.addEventListener("click", queueFinancialExport);
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
+agedBalanceClientsSearchEl?.addEventListener("input", renderAgedBalanceClients);
+agedBalanceSuppliersSearchEl?.addEventListener("input", renderAgedBalanceSuppliers);
 reportPeriodEls.forEach((input) => input.addEventListener("change", () => updateReportPeriod(input)));
 reportPeriodSelectEl.addEventListener("change", updateSelectedReportPeriod);
 createNextPeriodButton.addEventListener("click", createNextPeriod);
@@ -209,9 +224,14 @@ document.querySelectorAll("[data-view-target]").forEach((button) => {
 
 const viewCopy = {
   dashboard: {
-    label: "Dashboard / Tresorerie",
-    title: '<span>Dashboard</span> et tresorerie.',
-    subtitle: "Pilotez les saisies, imports, controles et premiers etats financiers depuis un espace structure."
+    label: "Tableau de bord",
+    title: 'Tableau de <span>Bord</span>.',
+    subtitle: "Vue d'ensemble de votre activite financiere."
+  },
+  entry: {
+    label: "Saisie",
+    title: '<span>Saisie</span> et controles.',
+    subtitle: "Pilotez les saisies, controles et derniers mouvements depuis un espace structure."
   },
   journal: {
     label: "Journal",
@@ -250,8 +270,23 @@ const viewCopy = {
   },
   reports: {
     label: "Etats financiers",
-    title: 'Etats <span>financiers</span> de controle.',
-    subtitle: "Consultez la balance et les premiers indicateurs de coherence comptable."
+    title: 'Etats <span>financiers</span> SYSCOHADA.',
+    subtitle: "Consultez le bilan, le compte de résultat et la balance générale."
+  },
+  taxes: {
+    label: "Déclaration TVA",
+    title: 'Déclaration <span>TVA</span>.',
+    subtitle: "Suivez la TVA collectée et déductible sur la période."
+  },
+  "aged-clients": {
+    label: "Balance agee clients",
+    title: 'Balance <span>agee</span> clients.',
+    subtitle: "Suivez l'anciennete des creances clients par tranches de retard."
+  },
+  "aged-suppliers": {
+    label: "Balance agee fournisseurs",
+    title: 'Balance <span>agee</span> fournisseurs.',
+    subtitle: "Suivez l'anciennete des dettes fournisseurs par tranches de retard."
   },
   audit: {
     label: "Audit",
@@ -338,7 +373,15 @@ async function restoreSession() {
     const auth = await fetchJson("/api/auth/me");
     state.auth.user = auth.user;
     state.auth.organization = auth.organization;
+    state.auth.availableOrganizations = auth.availableOrganizations || [];
+    if (!state.auth.activeOrganizationId || !state.auth.availableOrganizations.find(o => o.id === state.auth.activeOrganizationId)) {
+      state.auth.activeOrganizationId = auth.organization?.id;
+      if (state.auth.activeOrganizationId) {
+        localStorage.setItem("ohada-active-org", state.auth.activeOrganizationId);
+      }
+    }
     renderUser();
+    renderOrganizationSelector();
     return true;
   } catch {
     clearSession();
@@ -366,8 +409,16 @@ async function submitLogin(event) {
   state.auth.token = body.token;
   state.auth.user = body.user;
   state.auth.organization = body.organization;
+  state.auth.availableOrganizations = body.availableOrganizations || [];
+  if (!state.auth.activeOrganizationId || !state.auth.availableOrganizations.find(o => o.id === state.auth.activeOrganizationId)) {
+    state.auth.activeOrganizationId = body.organization?.id;
+    if (state.auth.activeOrganizationId) {
+      localStorage.setItem("ohada-active-org", state.auth.activeOrganizationId);
+    }
+  }
   localStorage.setItem("ohada-auth-token", body.token);
   renderUser();
+  renderOrganizationSelector();
   setLoginMessage("");
 
   if (state.booted) {
@@ -391,8 +442,7 @@ async function submitPasswordResetRequest(event) {
     setPasswordResetRequestMessage(body.error || "Demande impossible.", true);
     return;
   }
-  const link = body.reset?.url ? `${window.location.origin}${body.reset.url}` : "";
-  setPasswordResetRequestMessage(link ? `Lien genere: ${link}` : body.message);
+  setPasswordResetRequestMessage(body.message);
 }
 
 async function submitTokenPassword(event) {
@@ -460,6 +510,36 @@ function renderUser() {
   userRoleEl.textContent = roleLabel(user.role);
 }
 
+function renderOrganizationSelector() {
+  const selector = document.querySelector("#organization-selector");
+  if (!selector) return;
+  const orgs = state.auth.availableOrganizations || [];
+  selector.innerHTML = "";
+  if (orgs.length === 0) {
+    selector.innerHTML = `<option value="">Aucun dossier</option>`;
+    selector.disabled = true;
+    return;
+  }
+  
+  selector.disabled = false;
+  orgs.forEach(org => {
+    const option = document.createElement("option");
+    option.value = org.id;
+    option.textContent = org.name;
+    if (org.id === state.auth.organization?.id) {
+      option.selected = true;
+    }
+    selector.appendChild(option);
+  });
+  
+  selector.onchange = async (e) => {
+    state.auth.activeOrganizationId = e.target.value;
+    localStorage.setItem("ohada-active-org", e.target.value);
+    await restoreSession();
+    await refresh();
+  };
+}
+
 function setLoginMessage(text, isError = false) {
   loginMessageEl.textContent = text;
   loginMessageEl.classList.toggle("error", isError);
@@ -515,9 +595,13 @@ function setUiTheme(theme, persist = true) {
 function renderCompanyHeader() {
   const company = state.company;
   if (!company) return;
-  document.querySelector("#company-name").textContent = company.name;
-  document.querySelector("#company").textContent =
-    `${company.country} - ${company.currency} - Exercice ${company.fiscalYearStart.slice(0, 4)}`;
+  const companyNameEl = document.querySelector("#company-name");
+  if (companyNameEl) companyNameEl.textContent = company.name;
+  
+  const companyMetaEl = document.querySelector("#company");
+  if (companyMetaEl) {
+    companyMetaEl.textContent = `${company.country} - ${company.currency} - Exercice ${company.fiscalYearStart?.slice(0, 4) || ""}`;
+  }
 }
 
 function fillCompanyForm() {
@@ -614,7 +698,12 @@ async function refresh() {
   renderBatches();
   renderSubscriptionBatches();
   renderAuxiliaries();
+  renderAgedBalanceClients();
+  renderAgedBalanceSuppliers();
   renderGeneralLedger();
+  renderSyscohadaBalanceSheet();
+  renderSyscohadaIncomeStatement();
+  renderVatDeclaration();
   renderLettering();
   renderAuditActionFilter();
   renderAuditEvents();
@@ -635,15 +724,18 @@ async function fetchUsersForRole() {
 
 async function fetchReportsForPeriod() {
   const query = reportPeriodQuery();
-  const [trialBalance, generalLedger, auxiliaryBalance, balanceSheet, incomeStatement, closingControls] = await Promise.all([
+  const [trialBalance, generalLedger, auxiliaryBalance, balanceSheet, incomeStatement, closingControls, agedBalanceClients, agedBalanceSuppliers, vatDeclaration] = await Promise.all([
     fetchJson(`/api/reports/trial-balance${query}`),
     fetchJson(`/api/reports/general-ledger${query}`),
     fetchJson(`/api/reports/auxiliary-balance${query}`),
     fetchJson(`/api/reports/balance-sheet${query}`),
     fetchJson(`/api/reports/income-statement${query}`),
-    fetchJson(`/api/reports/closing-controls${query}`)
+    fetchJson(`/api/reports/closing-controls${query}`),
+    fetchJson(`/api/reports/aged-balance/clients${query}`),
+    fetchJson(`/api/reports/aged-balance/suppliers${query}`),
+    fetchJson(`/api/reports/vat-declaration${query}`)
   ]);
-  return { trialBalance, generalLedger, auxiliaryBalance, balanceSheet, incomeStatement, closingControls };
+  return { trialBalance, generalLedger, auxiliaryBalance, balanceSheet, incomeStatement, closingControls, agedBalanceClients, agedBalanceSuppliers, vatDeclaration };
 }
 
 async function updateReportPeriod(changedInput) {
@@ -658,6 +750,9 @@ async function updateReportPeriod(changedInput) {
   renderMetrics();
   renderClosingControls();
   renderTrialBalance();
+  renderSyscohadaBalanceSheet();
+  renderSyscohadaIncomeStatement();
+  renderVatDeclaration();
   renderAuxiliaries();
   renderGeneralLedger();
 }
@@ -672,7 +767,12 @@ async function updateSelectedReportPeriod() {
   renderMetrics();
   renderClosingControls();
   renderTrialBalance();
+  renderSyscohadaBalanceSheet();
+  renderSyscohadaIncomeStatement();
+  renderVatDeclaration();
   renderAuxiliaries();
+  renderAgedBalanceClients();
+  renderAgedBalanceSuppliers();
   renderGeneralLedger();
 }
 
@@ -937,8 +1037,7 @@ async function submitInvitation(event) {
   }
 
   inviteForm.reset();
-  const link = `${window.location.origin}${body.invitation.url}`;
-  setInviteMessage(`Invitation generee: ${link}`);
+  setInviteMessage(`L'invitation a été envoyée par email à ${payload.email}.`);
   state.users = await fetchUsersForRole();
   renderUsers();
 }
@@ -1239,11 +1338,100 @@ async function commitImport() {
 }
 
 function renderMetrics() {
-  const { balanceSheet, incomeStatement } = state.reports;
-  document.querySelector("#assets").textContent = compactMoney(balanceSheet.assets);
-  document.querySelector("#net-income").textContent = compactMoney(incomeStatement.netIncome);
-  document.querySelector("#difference").textContent = compactMoney(balanceSheet.difference);
-  document.querySelector("#entry-total").textContent = state.entries.length;
+  const { balanceSheet, incomeStatement, trialBalance } = state.reports;
+  if (!document.querySelector("#dashboard-cash")) return;
+
+  const cashRows = trialBalance.filter(r => r.classCode === "5");
+  const cashAmount = cashRows.reduce((sum, r) => sum + r.debit - r.credit, 0);
+
+  const salesRows = trialBalance.filter(r => r.classCode === "7");
+  const salesAmount = salesRows.reduce((sum, r) => sum + r.credit - r.debit, 0);
+
+  const expensesRows = trialBalance.filter(r => r.classCode === "6");
+  const expensesAmount = expensesRows.reduce((sum, r) => sum + r.debit - r.credit, 0);
+
+  document.querySelector("#dashboard-cash").textContent = compactMoney(cashAmount);
+  document.querySelector("#dashboard-sales").textContent = compactMoney(salesAmount);
+  document.querySelector("#dashboard-expenses").textContent = compactMoney(expensesAmount);
+  document.querySelector("#dashboard-net-income").textContent = compactMoney(incomeStatement.resultatNet ?? incomeStatement.netIncome ?? 0);
+
+  // Repartition des charges
+  const expenseGroups = {};
+  for (const row of expensesRows) {
+    if (!expenseGroups[row.groupLabel]) expenseGroups[row.groupLabel] = 0;
+    expenseGroups[row.groupLabel] += (row.debit - row.credit);
+  }
+  const maxExpense = Math.max(...Object.values(expenseGroups), 1);
+  const expenseChart = document.querySelector("#expense-breakdown-chart");
+  expenseChart.innerHTML = Object.entries(expenseGroups)
+    .filter(([_, amount]) => amount > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, amount]) => `
+      <div class="chart-bar-row">
+        <div class="chart-bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+        <div class="chart-bar-track"><div class="chart-bar-fill" style="width: ${(amount / maxExpense) * 100}%"></div></div>
+        <div class="chart-bar-value">${compactMoney(amount)}</div>
+      </div>
+    `).join("") || '<div class="empty-state">Aucune charge constatee.</div>';
+
+  // Repartition des produits
+  const revenueGroups = {};
+  for (const row of salesRows) {
+    if (!revenueGroups[row.groupLabel]) revenueGroups[row.groupLabel] = 0;
+    revenueGroups[row.groupLabel] += (row.credit - row.debit);
+  }
+  const maxRevenue = Math.max(...Object.values(revenueGroups), 1);
+  const revenueChart = document.querySelector("#revenue-breakdown-chart");
+  revenueChart.innerHTML = Object.entries(revenueGroups)
+    .filter(([_, amount]) => amount > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, amount]) => `
+      <div class="chart-bar-row">
+        <div class="chart-bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+        <div class="chart-bar-track"><div class="chart-bar-fill" style="width: ${(amount / maxRevenue) * 100}%"></div></div>
+        <div class="chart-bar-value">${compactMoney(amount)}</div>
+      </div>
+    `).join("") || '<div class="empty-state">Aucun produit constate.</div>';
+
+  // Soldes Intermediaires de Gestion (SIG)
+  const getBal = (prefixes) => trialBalance.filter(r => prefixes.some(p => r.code.startsWith(p))).reduce((sum, r) => sum + r.credit - r.debit, 0);
+  const marge = getBal(["701", "601", "6031"]);
+  const va = getBal(["70", "71", "72", "73", "74", "75", "60", "61", "62", "63", "64", "65"]);
+  const ebe = va + getBal(["66"]);
+  const rex = ebe + getBal(["68", "78", "79"]);
+  const rfin = getBal(["77", "67"]);
+  const rhao = trialBalance.filter(r => r.classCode === "8" && !r.code.startsWith("89")).reduce((sum, r) => sum + r.credit - r.debit, 0);
+
+  document.querySelector("#sig-breakdown").innerHTML = `
+    <div class="sig-row">
+      <div class="sig-label" title="Ventes de marchandises - Achats">Marge Commerciale</div>
+      <div class="sig-value">${compactMoney(marge)}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-label" title="Richesse creee par l'entreprise">Valeur Ajoutee (VA)</div>
+      <div class="sig-value">${compactMoney(va)}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-label" title="Ressource d'exploitation degagee">Excedent Brut (EBE)</div>
+      <div class="sig-value">${compactMoney(ebe)}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-label" title="Performance de l'activite principale">Resultat d'Exploitation</div>
+      <div class="sig-value">${compactMoney(rex)}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-label" title="Revenus financiers moins charges financieres">Resultat Financier</div>
+      <div class="sig-value">${compactMoney(rfin)}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig-label" title="Activites Hors Ordinaires">Resultat HAO</div>
+      <div class="sig-value">${compactMoney(rhao)}</div>
+    </div>
+    <div class="sig-row highlight">
+      <div class="sig-label">Resultat Net</div>
+      <div class="sig-value">${compactMoney(incomeStatement.resultatNet ?? incomeStatement.netIncome ?? 0)}</div>
+    </div>
+  `;
 }
 
 function renderNavigation() {
@@ -1586,6 +1774,62 @@ function renderTrialBalance8Columns(row, label = row.label) {
       <td>${money(row.closingDebit ?? Math.max(row.balance, 0))}</td>
       <td>${money(row.closingCredit ?? Math.max(-row.balance, 0))}</td>
     </tr>
+  `;
+}
+
+function renderSyscohadaBalanceSheet() {
+  const balanceSheetEl = document.getElementById("syscohada-balance-sheet");
+  if (!balanceSheetEl || !state.reports) return;
+
+  const bs = state.reports.balanceSheet;
+  const actif = bs.actif || { actifImmobilise: 0, actifCirculantStock: 0, actifCirculantCreances: 0, tresorerieActif: 0, totalActif: 0 };
+  const passif = bs.passif || { capitauxPropres: 0, resultatNet: 0, dettesFinancieres: 0, passifCirculant: 0, tresoreriePassif: 0, totalPassif: 0 };
+
+  balanceSheetEl.innerHTML = `
+    <tr><td>Actif Immobilisé</td><td class="amount">${money(actif.actifImmobilise)}</td><td>Capitaux Propres</td><td class="amount">${money(passif.capitauxPropres)}</td></tr>
+    <tr><td>Actif Circulant HAO & Stocks</td><td class="amount">${money(actif.actifCirculantStock)}</td><td>Résultat Net de l'Exercice</td><td class="amount">${money(passif.resultatNet)}</td></tr>
+    <tr><td>Créances et emplois assimilés</td><td class="amount">${money(actif.actifCirculantCreances)}</td><td>Dettes Financières</td><td class="amount">${money(passif.dettesFinancieres)}</td></tr>
+    <tr><td>Trésorerie Actif</td><td class="amount">${money(actif.tresorerieActif)}</td><td>Passif Circulant</td><td class="amount">${money(passif.passifCirculant)}</td></tr>
+    <tr><td></td><td></td><td>Trésorerie Passif</td><td class="amount">${money(passif.tresoreriePassif)}</td></tr>
+    <tr class="total-row"><td>Total Actif</td><td class="amount">${money(actif.totalActif)}</td><td>Total Passif</td><td class="amount">${money(passif.totalPassif)}</td></tr>
+  `;
+}
+
+function renderSyscohadaIncomeStatement() {
+  const isEl = document.getElementById("syscohada-income-statement");
+  if (!isEl || !state.reports) return;
+
+  const is = state.reports.incomeStatement;
+  
+  isEl.innerHTML = `
+    <tr><td>Marge Brute</td><td class="amount">${money(is.margeBrute)}</td></tr>
+    <tr><td>Valeur Ajoutée</td><td class="amount">${money(is.valeurAjoutee)}</td></tr>
+    <tr><td>Excédent Brut d'Exploitation (EBE)</td><td class="amount">${money(is.ebe)}</td></tr>
+    <tr><td>Résultat d'Exploitation</td><td class="amount">${money(is.resultatExploitation)}</td></tr>
+    <tr><td>Résultat Financier</td><td class="amount">${money(is.resultatFinancier)}</td></tr>
+    <tr><td>Résultat HAO</td><td class="amount">${money(is.resultatHao)}</td></tr>
+    <tr class="total-row"><td>Résultat Net</td><td class="amount">${money(is.resultatNet)}</td></tr>
+  `;
+}
+
+function renderVatDeclaration() {
+  const vatEl = document.getElementById("vat-declaration");
+  const vatTotalsEl = document.getElementById("vat-totals");
+  if (!vatEl || !state.reports || !state.reports.vatDeclaration) return;
+
+  const vat = state.reports.vatDeclaration;
+
+  vatEl.innerHTML = `
+    <tr><td>Chiffre d'Affaires HT (Base)</td><td class="amount">${money(vat.caHt)}</td></tr>
+    <tr><td>TVA Collectée</td><td class="amount">${money(vat.tvaCollectee)}</td></tr>
+    <tr><td>Achats HT (Base)</td><td class="amount">${money(vat.achatsHt)}</td></tr>
+    <tr><td>TVA Déductible</td><td class="amount">${money(vat.tvaDeductible)}</td></tr>
+    <tr class="total-row"><td>TVA Nette</td><td class="amount">${money(vat.tvaNette)}</td></tr>
+  `;
+
+  vatTotalsEl.innerHTML = `
+    <div class="total-chip"><span>TVA à payer</span><strong>${money(vat.tvaAPayer)}</strong></div>
+    <div class="total-chip"><span>Crédit de TVA</span><strong>${money(vat.creditTva)}</strong></div>
   `;
 }
 
@@ -2108,6 +2352,128 @@ function renderAuxiliaries() {
       </tr>
     `;
   }
+  
+  renderAuxiliaryLedger();
+}
+
+function filteredAgedBalanceClients() {
+  const query = (agedBalanceClientsSearchEl?.value || "").toLowerCase();
+  return (state.reports?.agedBalanceClients || []).filter((row) =>
+    !query ||
+    row.code.toLowerCase().includes(query) ||
+    row.label.toLowerCase().includes(query)
+  );
+}
+
+function filteredAgedBalanceSuppliers() {
+  const query = (agedBalanceSuppliersSearchEl?.value || "").toLowerCase();
+  return (state.reports?.agedBalanceSuppliers || []).filter((row) =>
+    !query ||
+    row.code.toLowerCase().includes(query) ||
+    row.label.toLowerCase().includes(query)
+  );
+}
+
+function renderAgedBalanceClients() {
+  const target = document.querySelector("#aged-balance-clients");
+  if (!target) return;
+  
+  const rows = filteredAgedBalanceClients();
+  const totals = rows.reduce((acc, row) => {
+    acc.total += row.total;
+    acc.current += row.current;
+    acc.b30 += row.b30;
+    acc.b60 += row.b60;
+    acc.b90 += row.b90;
+    acc.b90plus += row.b90plus;
+    return acc;
+  }, { total: 0, current: 0, b30: 0, b60: 0, b90: 0, b90plus: 0 });
+
+  target.innerHTML = rows
+    .map((row) => `
+      <tr>
+        <td>${escapeHtml(row.code)} - ${escapeHtml(row.label)}</td>
+        <td>${escapeHtml(row.accountCode)}</td>
+        <td><strong>${money(row.total)}</strong></td>
+        <td>${money(row.current)}</td>
+        <td>${money(row.b30)}</td>
+        <td>${money(row.b60)}</td>
+        <td class="${row.b90 > 0 ? 'text-warning' : ''}">${money(row.b90)}</td>
+        <td class="${row.b90plus > 0 ? 'text-danger' : ''}">${money(row.b90plus)}</td>
+      </tr>
+    `)
+    .join("");
+
+  if (rows.length > 0) {
+    target.innerHTML += `
+      <tr class="total-row">
+        <td colspan="2">Totaux</td>
+        <td><strong>${money(totals.total)}</strong></td>
+        <td>${money(totals.current)}</td>
+        <td>${money(totals.b30)}</td>
+        <td>${money(totals.b60)}</td>
+        <td class="${totals.b90 > 0 ? 'text-warning' : ''}">${money(totals.b90)}</td>
+        <td class="${totals.b90plus > 0 ? 'text-danger' : ''}">${money(totals.b90plus)}</td>
+      </tr>
+    `;
+  } else {
+    target.innerHTML = `
+      <tr>
+        <td colspan="8">Aucune donnee pour la balance agee clients.</td>
+      </tr>
+    `;
+  }
+}
+
+function renderAgedBalanceSuppliers() {
+  const target = document.querySelector("#aged-balance-suppliers");
+  if (!target) return;
+  
+  const rows = filteredAgedBalanceSuppliers();
+  const totals = rows.reduce((acc, row) => {
+    acc.total += row.total;
+    acc.current += row.current;
+    acc.b30 += row.b30;
+    acc.b60 += row.b60;
+    acc.b90 += row.b90;
+    acc.b90plus += row.b90plus;
+    return acc;
+  }, { total: 0, current: 0, b30: 0, b60: 0, b90: 0, b90plus: 0 });
+
+  target.innerHTML = rows
+    .map((row) => `
+      <tr>
+        <td>${escapeHtml(row.code)} - ${escapeHtml(row.label)}</td>
+        <td>${escapeHtml(row.accountCode)}</td>
+        <td><strong>${money(row.total)}</strong></td>
+        <td>${money(row.current)}</td>
+        <td>${money(row.b30)}</td>
+        <td>${money(row.b60)}</td>
+        <td class="${row.b90 > 0 ? 'text-warning' : ''}">${money(row.b90)}</td>
+        <td class="${row.b90plus > 0 ? 'text-danger' : ''}">${money(row.b90plus)}</td>
+      </tr>
+    `)
+    .join("");
+
+  if (rows.length > 0) {
+    target.innerHTML += `
+      <tr class="total-row">
+        <td colspan="2">Totaux</td>
+        <td><strong>${money(totals.total)}</strong></td>
+        <td>${money(totals.current)}</td>
+        <td>${money(totals.b30)}</td>
+        <td>${money(totals.b60)}</td>
+        <td class="${totals.b90 > 0 ? 'text-warning' : ''}">${money(totals.b90)}</td>
+        <td class="${totals.b90plus > 0 ? 'text-danger' : ''}">${money(totals.b90plus)}</td>
+      </tr>
+    `;
+  } else {
+    target.innerHTML = `
+      <tr>
+        <td colspan="8">Aucune donnee pour la balance agee fournisseurs.</td>
+      </tr>
+    `;
+  }
 }
 
 function totalDebitCreditRows(rows) {
@@ -2148,6 +2514,55 @@ function filteredAuxiliaryBalance() {
     ].join(" ").toLowerCase();
     return matchesParty && (!query || haystack.includes(query));
   });
+}
+
+function filteredAuxiliaryLedgerLines() {
+  const query = auxiliaryBalanceSearchEl.value.trim().toLowerCase();
+  const partyKind = auxiliaryBalancePartyFilterEl.value;
+  const period = reportPeriod();
+  
+  let matchingLines = [];
+  for (const entry of state.entries) {
+    if (entry.date < period.startDate || entry.date > period.endDate) continue;
+    
+    for (const line of entry.lines) {
+      if (line.auxiliaryCode) {
+        matchingLines.push({ ...line, date: entry.date, reference: entry.reference, description: entry.description });
+      }
+    }
+  }
+  
+  return matchingLines.filter(line => {
+    const matchesParty = partyKind === "all" || accountPartyKind(line.accountCode) === partyKind;
+    if (!matchesParty) return false;
+    
+    if (query) {
+       const auxLabel = auxiliaryInputValue(line.auxiliaryCode).toLowerCase();
+       const accLabel = accountName(line.accountCode).toLowerCase();
+       if (!auxLabel.includes(query) && !accLabel.includes(query) && !line.auxiliaryCode.toLowerCase().includes(query)) {
+          return false;
+       }
+    }
+    return true;
+  }).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function renderAuxiliaryLedger() {
+  const lines = filteredAuxiliaryLedgerLines();
+  const tbody = document.querySelector("#auxiliary-ledger");
+  if (!tbody) return;
+  
+  tbody.innerHTML = lines.map(line => `
+    <tr>
+      <td>${escapeHtml(line.date)}</td>
+      <td>${escapeHtml(line.reference)}</td>
+      <td>${escapeHtml(line.accountCode)}</td>
+      <td>${escapeHtml(auxiliaryInputValue(line.auxiliaryCode))}</td>
+      <td>${escapeHtml(line.description || "")}</td>
+      <td class="amount">${line.debit > 0 ? money(line.debit) : ""}</td>
+      <td class="amount">${line.credit > 0 ? money(line.credit) : ""}</td>
+    </tr>
+  `).join("") || '<tr><td colspan="7" class="empty-state">Aucune ecriture trouvee pour les tiers selectionnes.</td></tr>';
 }
 
 function renderAccountOptions() {
@@ -2406,7 +2821,7 @@ function startEntryEdit(entryId) {
   saveEntryButton.textContent = "Modifier l'ecriture";
   cancelEntryEditButton.hidden = false;
   setMessage(`Modification de l'ecriture ${entry.reference}.`);
-  setView("dashboard");
+  setView("entry");
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -2544,6 +2959,14 @@ function ledgerPrintTitle() {
 function auxiliaryBalancePrintTitle() {
   const party = auxiliaryBalancePartyFilterEl.value;
   const parts = [party === "all" ? "Balance auxiliaire" : `Balance auxiliaire - ${partyKindLabel(party)}`];
+  const period = reportPeriodLabel();
+  if (period) parts.push(period);
+  return parts.join(" - ");
+}
+
+function auxiliaryLedgerPrintTitle() {
+  const party = auxiliaryBalancePartyFilterEl.value;
+  const parts = [party === "all" ? "Grand Livre des Tiers" : `Grand Livre des Tiers - ${partyKindLabel(party)}`];
   const period = reportPeriodLabel();
   if (period) parts.push(period);
   return parts.join(" - ");
@@ -2736,9 +3159,10 @@ async function downloadStoredFile(fileId, filename) {
   URL.revokeObjectURL(url);
 }
 
-function printState(title) {
+function printState(title, mode = "") {
   const company = state.company ?? {};
   document.body.dataset.printTitle = title;
+  document.body.dataset.printMode = mode;
   document.body.dataset.printCompany = company.name ?? "";
   document.body.dataset.printMeta = [
     company.country,
@@ -2747,6 +3171,7 @@ function printState(title) {
     reportPeriodLabel()
   ].filter(Boolean).join(" - ");
   window.print();
+  document.body.dataset.printMode = "";
 }
 
 function setImportStatus(text, tone) {
@@ -2755,11 +3180,11 @@ function setImportStatus(text, tone) {
 }
 
 function money(amount) {
-  return `${formatter.format(Number(amount || 0))} FCFA`;
+  return formatter.format(Number(amount || 0));
 }
 
 function compactMoney(amount) {
-  return `${compactFormatter.format(Number(amount || 0))} FCFA`;
+  return compactFormatter.format(Number(amount || 0));
 }
 
 function roundMoney(amount) {
@@ -2823,3 +3248,88 @@ function escapeHtml(value) {
     "'": "&#039;"
   })[char]);
 }
+
+/* =========================================================================
+   AI Chat Assistant Logic
+   ========================================================================= */
+const aiChatToggle = document.getElementById("ai-chat-toggle");
+const aiChatWindow = document.getElementById("ai-chat-window");
+const aiChatClose = document.getElementById("ai-chat-close");
+const aiChatForm = document.getElementById("ai-chat-form");
+const aiChatInput = document.getElementById("ai-chat-input");
+const aiChatMessages = document.getElementById("ai-chat-messages");
+const aiChatSubmit = document.getElementById("ai-chat-submit");
+
+let aiChatHistory = [];
+
+aiChatToggle?.addEventListener("click", () => {
+  aiChatWindow.classList.remove("hidden");
+  aiChatInput.focus();
+});
+
+aiChatClose?.addEventListener("click", () => {
+  aiChatWindow.classList.add("hidden");
+});
+
+function addChatMessage(content, role) {
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `message ${role}`;
+  // Use simple HTML formatting for bold and line breaks
+  const formatted = escapeHtml(content)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+  msgDiv.innerHTML = formatted;
+  aiChatMessages.appendChild(msgDiv);
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+}
+
+function showTypingIndicator() {
+  const div = document.createElement("div");
+  div.className = "message ai typing-indicator";
+  div.id = "typing-indicator";
+  div.innerHTML = "<span></span><span></span><span></span>";
+  aiChatMessages.appendChild(div);
+  aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+}
+
+function hideTypingIndicator() {
+  const indicator = document.getElementById("typing-indicator");
+  if (indicator) indicator.remove();
+}
+
+aiChatForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = aiChatInput.value.trim();
+  if (!text) return;
+
+  aiChatInput.value = "";
+  aiChatSubmit.disabled = true;
+  
+  addChatMessage(text, "user");
+  showTypingIndicator();
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history: aiChatHistory })
+    });
+
+    const data = await response.json();
+    hideTypingIndicator();
+
+    if (!response.ok) {
+      addChatMessage(data.error || "Erreur lors de la communication avec l'assistant.", "error");
+    } else {
+      addChatMessage(data.answer, "ai");
+      aiChatHistory.push({ role: "user", content: text });
+      aiChatHistory.push({ role: "model", content: data.answer });
+    }
+  } catch (err) {
+    hideTypingIndicator();
+    addChatMessage("Impossible de joindre le serveur.", "error");
+  } finally {
+    aiChatSubmit.disabled = false;
+    aiChatInput.focus();
+  }
+});
