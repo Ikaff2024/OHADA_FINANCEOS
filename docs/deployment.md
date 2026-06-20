@@ -20,6 +20,8 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 | `OHADA_CORS_ALLOWED_ORIGINS` | Origines frontend autorisees, separees par des virgules |
 | `DATABASE_URL` | URL PostgreSQL cible pour le deploiement production |
 | `PGSSLMODE` | Mode SSL PostgreSQL; ne desactiver que pour une base locale |
+| `PG_DOCKER_CONTAINER` | Conteneur local optionnel contenant `pg_dump` et `pg_restore` |
+| `PG_BIN_DIR` | Repertoire optionnel des outils PostgreSQL natifs |
 | `SMTP_HOST`, `SMTP_PORT` | Serveur SMTP transactionnel |
 | `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Identifiants et expediteur SMTP |
 | `GEMINI_API_KEY` | Cle optionnelle pour l'assistant comptable |
@@ -78,6 +80,44 @@ OHADA_DB_RUNTIME=postgres
 6. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 7. Remplacer ensuite le stockage local par un service S3-compatible.
 
+## Verification SMTP
+
+Verifier le format et l'envoi des emails avec le serveur SMTP de test local:
+
+```bash
+npm.cmd run check:smtp
+```
+
+Apres configuration des variables SMTP dans `.env`, verifier la connexion au fournisseur reel:
+
+```bash
+npm.cmd run smtp:check
+```
+
+## Sauvegarde PostgreSQL
+
+Les commandes utilisent `pg_dump` et `pg_restore` depuis le `PATH`, `PG_BIN_DIR` ou le conteneur indique par `PG_DOCKER_CONTAINER`.
+
+Creer une sauvegarde binaire:
+
+```bash
+npm.cmd run db:pg:backup
+```
+
+Un chemin peut etre fourni explicitement:
+
+```bash
+npm.cmd run db:pg:backup -- data/backups/avant-migration.dump
+```
+
+Restaurer vers la base designee par `DATABASE_URL`:
+
+```bash
+npm.cmd run db:pg:restore -- data/backups/avant-migration.dump --confirm
+```
+
+La restauration utilise `--clean --if-exists` et remplace les objets presents dans la base cible. Toujours restaurer d'abord dans une base de controle et executer ensuite `db:pg:check` puis `check:pg:e2e`.
+
 ## Points d'attention production
 
 - Changer `OHADA_DEFAULT_ADMIN_PASSWORD` avant tout deploiement partage.
@@ -85,5 +125,6 @@ OHADA_DB_RUNTIME=postgres
 - Configurer `APP_URL` avec l'URL HTTPS publique avant d'envoyer des invitations.
 - Monter `OHADA_STORAGE_DIR` sur un volume persistant.
 - Sauvegarder la base quotidiennement.
+- Tester regulierement la restauration dans une base distincte.
 - Garder `DATABASE_URL` hors Git.
 - Utiliser HTTPS devant le serveur applicatif.

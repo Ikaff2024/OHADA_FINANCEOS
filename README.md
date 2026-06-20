@@ -17,6 +17,21 @@ http://localhost:3050
 Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
 La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.example` liste les variables attendues.
 
+## Verifier
+
+```bash
+npm.cmd run check
+npm.cmd run check:e2e
+npm.cmd run check:smtp
+```
+
+Avec une base PostgreSQL configuree:
+
+```bash
+npm.cmd run db:pg:check
+npm.cmd run check:pg:e2e
+```
+
 ## Contenu du MVP
 
 - Creation et lecture d'une entreprise de demonstration
@@ -92,6 +107,8 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Invitations et reinitialisations envoyables par SMTP, avec mode mock local
 - Assistant comptable Gemini base sur le guide SYSCOHADA quand `GEMINI_API_KEY` est configuree
 - Smoke test PostgreSQL couvrant authentification, lectures et cycle creation/modification/suppression d'ecriture
+- Sauvegarde et restauration PostgreSQL par `pg_dump` / `pg_restore`, utilisables aussi via un conteneur Docker
+- Verification SMTP locale automatisee et commande de verification du fournisseur configure
 
 ## Acces de demonstration
 

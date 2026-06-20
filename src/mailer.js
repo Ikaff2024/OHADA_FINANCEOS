@@ -3,15 +3,18 @@ import { config } from "./config.js";
 
 function getTransporter() {
   if (!config.smtp.host) return null;
-  return nodemailer.createTransport({
+  const transport = {
     host: config.smtp.host,
     port: config.smtp.port,
-    secure: config.smtp.port === 465,
-    auth: {
+    secure: config.smtp.port === 465
+  };
+  if (config.smtp.user) {
+    transport.auth = {
       user: config.smtp.user,
       pass: config.smtp.pass
-    }
-  });
+    };
+  }
+  return nodemailer.createTransport(transport);
 }
 
 function getAppUrl() {
@@ -25,7 +28,7 @@ export async function sendInvitationEmail(user, token) {
   if (!transporter) {
     console.log(`[MAILER MOCK] Invitation envoyee a ${user.email}`);
     console.log(`[MAILER MOCK] Lien: ${link}`);
-    return;
+    return { mode: "mock", link };
   }
 
   const mailOptions = {
@@ -55,11 +58,8 @@ Ce lien expirera dans 7 jours.`,
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error("[MAILER ERROR] Echec de l'envoi de l'invitation:", error);
-  }
+  const info = await transporter.sendMail(mailOptions);
+  return { mode: "smtp", messageId: info.messageId, link };
 }
 
 export async function sendPasswordResetEmail(user, token) {
@@ -69,7 +69,7 @@ export async function sendPasswordResetEmail(user, token) {
   if (!transporter) {
     console.log(`[MAILER MOCK] Reinitialisation envoyee a ${user.email}`);
     console.log(`[MAILER MOCK] Lien: ${link}`);
-    return;
+    return { mode: "mock", link };
   }
 
   const mailOptions = {
@@ -99,9 +99,15 @@ Ce lien expirera dans 1 heure.`,
     `
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error("[MAILER ERROR] Echec de l'envoi de la reinitialisation:", error);
+  const info = await transporter.sendMail(mailOptions);
+  return { mode: "smtp", messageId: info.messageId, link };
+}
+
+export async function verifyMailer() {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return { ok: false, mode: "mock", error: "SMTP_HOST n'est pas configure." };
   }
+  await transporter.verify();
+  return { ok: true, mode: "smtp", host: config.smtp.host, port: config.smtp.port };
 }

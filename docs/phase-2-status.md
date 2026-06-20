@@ -55,6 +55,8 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Rapports complementaires: declaration de TVA et balances agees clients/fournisseurs.
 - Assistant comptable Gemini branche sur le guide SYSCOHADA lorsque la cle API est configuree.
 - Base SQLite locale retiree du suivi Git tout en restant disponible pour le developpement.
+- Verification SMTP locale automatisee et commande de verification d'un fournisseur SMTP configure.
+- Sauvegarde et restauration PostgreSQL validees sur une base distincte avec controle des volumes et smoke API.
 
 ## Partiellement fait
 
@@ -67,10 +69,10 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 
 ## Reste a faire pour finir la phase 2
 
-- Configurer et valider un fournisseur SMTP reel sur l'environnement pilote.
+- Configurer et valider les identifiants d'un fournisseur SMTP reel sur l'environnement pilote.
 - Appliquer les migrations PostgreSQL sur l'environnement pilote avec sauvegarde et restauration testees.
 - Elargir le test PostgreSQL aux utilisateurs, imports bancaires, lettrage, periodes et jobs.
-- Documenter et tester les sauvegardes/restaurations SQLite et PostgreSQL.
+- Planifier les sauvegardes automatiques et definir leur duree de retention.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.
 - Completer le guide de deploiement pour une cible choisie et ajouter une procedure de rollback.
