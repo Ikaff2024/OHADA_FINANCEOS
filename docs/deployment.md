@@ -26,6 +26,9 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 | `OHADA_PG_CONNECTION_TIMEOUT_MS` | Timeout de connexion PostgreSQL utilise par l'application et les healthchecks |
 | `PG_DOCKER_CONTAINER` | Conteneur local optionnel contenant `pg_dump` et `pg_restore` |
 | `PG_BIN_DIR` | Repertoire optionnel des outils PostgreSQL natifs |
+| `OHADA_BACKUP_DIR` | Repertoire des sauvegardes PostgreSQL |
+| `OHADA_BACKUP_RETENTION_DAYS` | Duree de retention; `0` desactive le nettoyage automatique |
+| `OHADA_BACKUP_MIN_COPIES` | Nombre minimal de sauvegardes conservees meme au-dela de la retention |
 | `SMTP_HOST`, `SMTP_PORT` | Serveur SMTP transactionnel |
 | `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Identifiants et expediteur SMTP |
 | `GEMINI_API_KEY` | Cle optionnelle pour l'assistant comptable |
@@ -140,6 +143,18 @@ Un chemin peut etre fourni explicitement:
 npm.cmd run db:pg:backup -- data/backups/avant-migration.dump
 ```
 
+Chaque sauvegarde automatique applique ensuite la politique configuree. Par defaut, les fichiers `postgres-*.dump` de plus de 30 jours sont supprimes, tout en conservant au moins les 7 sauvegardes les plus recentes. Les fichiers nommes manuellement, comme `avant-migration.dump`, ne sont jamais supprimes par cette retention.
+
+### Planification quotidienne
+
+Sur le serveur pilote Linux, executer une sauvegarde chaque nuit avec le planificateur du systeme. Exemple `cron` a 02:00 UTC:
+
+```cron
+0 2 * * * cd /opt/ohada-financeos && /usr/bin/npm run pilot:backup >> /var/log/ohada-financeos-backup.log 2>&1
+```
+
+Verifier apres installation que la tache produit bien un fichier non vide dans `OHADA_BACKUP_DIR`. Une fois par mois, restaurer la derniere sauvegarde dans une base de controle et executer `db:pg:check`.
+
 Restaurer vers la base designee par `DATABASE_URL`:
 
 ```bash
@@ -155,6 +170,30 @@ npm.cmd run check:pg:full
 ```
 
 Ce test couvre les utilisateurs, invitations, reset, periodes, verrouillage, ecritures, lettrage, imports bancaires et jobs d'export. Il nettoie les donnees et fichiers qu'il cree.
+
+## Procedure de rollback
+
+Avant chaque mise en production:
+
+1. Creer une sauvegarde nommee qui ne sera pas soumise a la retention:
+
+```bash
+npm.cmd run pilot:backup -- data/backups/avant-deploiement.dump
+```
+
+2. Noter le commit actuellement deploye avec `git rev-parse HEAD`, puis deployer la nouvelle version et verifier `/api/health`.
+3. En cas de regression applicative sans migration destructive, redeployer le commit precedent puis relancer `npm.cmd run pilot:up`.
+4. Si les donnees doivent aussi etre restaurees, arreter l'application, restaurer la sauvegarde puis redemarrer:
+
+```bash
+docker compose --env-file .env.production -f compose.pilot.yml stop app
+npm.cmd run pilot:restore -- data/backups/avant-deploiement.dump --confirm
+docker compose --env-file .env.production -f compose.pilot.yml start app
+```
+
+5. Executer `db:pg:check`, verifier `/api/health/database?checkPostgres=1` et controler les parcours metier critiques avant de rouvrir l'acces.
+
+Ne jamais restaurer une sauvegarde sans avoir d'abord conserve une copie de l'etat courant, meme si cet etat est degrade.
 
 ## Points d'attention production
 

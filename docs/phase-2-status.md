@@ -61,6 +61,8 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Contrat PostgreSQL des jobs et fichiers aligne sur SQLite, avec exports serveur fonctionnels.
 - Stack pilote Docker validee de bout en bout: build, migrations, bootstrap, persistance, redemarrage et healthcheck PostgreSQL.
 - Perte PostgreSQL geree sans crash applicatif: healthcheck 503 pendant l'incident puis retour automatique a 200.
+- Sauvegardes PostgreSQL dotees d'une retention configurable, avec un minimum de copies protegees.
+- Planification quotidienne et procedure de rollback documentees pour le pilote.
 
 ## Partiellement fait
 
@@ -74,9 +76,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 ## Reste a faire pour finir la phase 2
 
 - Configurer et valider les identifiants d'un fournisseur SMTP reel sur l'environnement pilote.
-- Appliquer les migrations PostgreSQL sur l'environnement pilote avec sauvegarde et restauration testees.
 - Completer la couverture PostgreSQL sur la creation d'organisations, les comptes personnalises et les abonnements.
-- Planifier les sauvegardes automatiques et definir leur duree de retention.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.
 - Completer le guide de deploiement pour une cible choisie et ajouter une procedure de rollback.
