@@ -57,12 +57,14 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Base SQLite locale retiree du suivi Git tout en restant disponible pour le developpement.
 - Verification SMTP locale automatisee et commande de verification d'un fournisseur SMTP configure.
 - Sauvegarde et restauration PostgreSQL validees sur une base distincte avec controle des volumes et smoke API.
+- E2E PostgreSQL complet sur base jetable: utilisateurs, invitations, reset, periodes, verrouillage, ecritures, lettrage, import bancaire et jobs d'export.
+- Contrat PostgreSQL des jobs et fichiers aligne sur SQLite, avec exports serveur fonctionnels.
 
 ## Partiellement fait
 
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
-- Base de donnees: SQLite solide pour le developpement local et runtime PostgreSQL fonctionnel; le smoke PostgreSQL ne couvre pas encore tous les parcours imports, lettrage, utilisateurs et jobs.
+- Base de donnees: SQLite solide pour le developpement local et runtime PostgreSQL fonctionnel; les parcours critiques disposent maintenant d'un e2e PostgreSQL sur base jetable.
 - Auth: connexion, invitations, reinitialisation, SMTP et multi-organisation sont branches; il reste a valider un fournisseur SMTP reel et les politiques de delivrabilite.
 - Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
 - Exports: exports navigateur et generation serveur historisee disponibles.
@@ -71,7 +73,7 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 
 - Configurer et valider les identifiants d'un fournisseur SMTP reel sur l'environnement pilote.
 - Appliquer les migrations PostgreSQL sur l'environnement pilote avec sauvegarde et restauration testees.
-- Elargir le test PostgreSQL aux utilisateurs, imports bancaires, lettrage, periodes et jobs.
+- Completer la couverture PostgreSQL sur la creation d'organisations, les comptes personnalises et les abonnements.
 - Planifier les sauvegardes automatiques et definir leur duree de retention.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.

@@ -780,16 +780,18 @@ export async function enqueueJob(input) {
   const job = {
     id: crypto.randomUUID(),
     organizationId: input.organizationId ?? defaultOrganizationId,
-    type: input.type,
+    type: String(input.type || "").trim(),
     status: "queued",
-    payload: input.payload,
+    payload: input.payload ?? {},
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
 
+  if (!job.type) return { ok: false, status: 422, error: "Le type de job est obligatoire." };
+
   await pg().run("INSERT INTO jobs (id, organization_id, type, status, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [job.id, job.organizationId, job.type, job.status, JSON.stringify(job.payload), job.createdAt, job.updatedAt]);
 
-  return job;
+  return { ok: true, job };
 }
 
 export async function claimNextJob() {
@@ -799,38 +801,47 @@ export async function claimNextJob() {
 }
 
 export async function completeJob(jobId, result) {
-  await pg().run("UPDATE jobs SET status = 'done', result_json = ?, finished_at = ?, updated_at = ? WHERE id = ?", [JSON.stringify(result), new Date().toISOString(), new Date().toISOString(), jobId]);
+  const now = new Date().toISOString();
+  await pg().run("UPDATE jobs SET status = 'done', result_json = ?, error = NULL, finished_at = ?, updated_at = ? WHERE id = ?", [JSON.stringify(result ?? {}), now, now, jobId]);
+  return { ok: true };
 }
 
 export async function failJob(jobId, error) {
-  await pg().run("UPDATE jobs SET status = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE id = ?", [String(error || "Unknown error"), new Date().toISOString(), new Date().toISOString(), jobId]);
+  const now = new Date().toISOString();
+  await pg().run("UPDATE jobs SET status = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE id = ?", [String(error || "Erreur job"), now, now, jobId]);
+  return { ok: true };
 }
 
 export async function saveTextFile(input) {
-  const { join } = await import("node:path");
-  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join, relative } = await import("node:path");
+  const { mkdir, stat, writeFile } = await import("node:fs/promises");
   const { rootDir } = await import("./config.js");
-  
+
+  const name = String(input.name || "").trim();
+  const content = String(input.content ?? "");
+  const mimeType = String(input.mimeType || "text/plain").trim();
+  if (!name) return { ok: false, status: 422, error: "Le nom du fichier est obligatoire." };
+
   const id = crypto.randomUUID();
-  const path = join("storage", id + ".json");
-  const fullPath = join(rootDir, path);
-  await mkdir(join(rootDir, "storage"), { recursive: true });
-  const buffer = Buffer.from(input.content, "utf8");
-  await writeFile(fullPath, buffer);
+  const safeName = name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  const fullPath = join(config.storageDir, `${id}-${safeName}`);
+  await mkdir(config.storageDir, { recursive: true });
+  await writeFile(fullPath, content, "utf8");
+  const fileStats = await stat(fullPath);
 
   const file = {
     id,
     organizationId: input.organizationId ?? defaultOrganizationId,
-    name: input.name,
-    path,
-    mimeType: input.mimeType || "application/json",
-    size: buffer.length,
+    name,
+    path: relative(rootDir, fullPath),
+    mimeType,
+    size: fileStats.size,
     createdAt: new Date().toISOString()
   };
 
   await pg().run("INSERT INTO stored_files (id, organization_id, name, path, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", [file.id, file.organizationId, file.name, file.path, file.mimeType, file.size, file.createdAt]);
 
-  return file;
+  return { ok: true, file };
 }
 
 export async function readStoredFileContent(fileId, organizationId = defaultOrganizationId) {

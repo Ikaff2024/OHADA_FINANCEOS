@@ -30,7 +30,10 @@ Avec une base PostgreSQL configuree:
 ```bash
 npm.cmd run db:pg:check
 npm.cmd run check:pg:e2e
+npm.cmd run check:pg:full
 ```
+
+`check:pg:full` doit viser une base jetable dont le nom contient `test` ou `e2e`.
 
 ## Contenu du MVP
 
@@ -109,6 +112,7 @@ npm.cmd run check:pg:e2e
 - Smoke test PostgreSQL couvrant authentification, lectures et cycle creation/modification/suppression d'ecriture
 - Sauvegarde et restauration PostgreSQL par `pg_dump` / `pg_restore`, utilisables aussi via un conteneur Docker
 - Verification SMTP locale automatisee et commande de verification du fournisseur configure
+- E2E PostgreSQL complet: utilisateurs, reset, periodes, verrouillage, ecritures, lettrage, import bancaire, jobs et fichiers
 
 ## Acces de demonstration
 

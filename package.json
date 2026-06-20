@@ -10,6 +10,7 @@
     "check": "node src/check.js",
     "check:e2e": "node src/check-server.js",
     "check:pg:e2e": "node scripts/check-postgres-smoke.js",
+    "check:pg:full": "node scripts/check-postgres-full.js",
     "check:smtp": "node scripts/check-smtp-local.js",
     "smtp:check": "node --env-file=.env scripts/check-smtp.js",
     "db:migrate:pg": "node scripts/migrate-postgres.js",

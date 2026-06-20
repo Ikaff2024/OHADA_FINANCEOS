@@ -118,6 +118,14 @@ npm.cmd run db:pg:restore -- data/backups/avant-migration.dump --confirm
 
 La restauration utilise `--clean --if-exists` et remplace les objets presents dans la base cible. Toujours restaurer d'abord dans une base de controle et executer ensuite `db:pg:check` puis `check:pg:e2e`.
 
+Pour la validation complete des mutations, utiliser exclusivement une base jetable dont le nom contient `test` ou `e2e`:
+
+```bash
+npm.cmd run check:pg:full
+```
+
+Ce test couvre les utilisateurs, invitations, reset, periodes, verrouillage, ecritures, lettrage, imports bancaires et jobs d'export. Il nettoie les donnees et fichiers qu'il cree.
+
 ## Points d'attention production
 
 - Changer `OHADA_DEFAULT_ADMIN_PASSWORD` avant tout deploiement partage.
