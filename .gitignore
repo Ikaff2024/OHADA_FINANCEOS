@@ -10,3 +10,5 @@ data/postgres-seed*.sql
 storage/uploads/*
 !storage/uploads/.gitkeep
 .aider*
+scripts/patch.js
+test-ai.js

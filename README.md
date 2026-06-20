@@ -33,6 +33,8 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Selection d'exercice pour piloter les etats et indicateurs
 - Bilan simplifie
 - Compte de resultat simplifie
+- Declaration de TVA indicative
+- Balances agees clients et fournisseurs
 - API JSON locale
 - Persistance SQLite dans `data/financeos.sqlite`
 - Import CSV bancaire avec suggestions de comptes
@@ -68,6 +70,7 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Utilisateurs, roles et organisation de demonstration
 - Administration des utilisateurs et roles dans l'interface
 - Creation de nouveaux dossiers/organisations avec societe, exercice et proprietaire initial
+- Selection du dossier actif pour les utilisateurs multi-organisations
 - Protection des routes d'ecriture sensibles par role
 - API metier fermee par defaut: les lectures et mutations exigent une session
 - File de jobs simple pour preparer imports et generations longues
@@ -86,6 +89,9 @@ La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.
 - Healthcheck base de donnees avec runtime SQLite explicite et verification PostgreSQL optionnelle
 - Colonnes `organization_id` sur les tables metier pour preparer l'isolation multi-entreprise
 - Contexte organisation applique aux lectures et ecritures API authentifiees
+- Invitations et reinitialisations envoyables par SMTP, avec mode mock local
+- Assistant comptable Gemini base sur le guide SYSCOHADA quand `GEMINI_API_KEY` est configuree
+- Smoke test PostgreSQL couvrant authentification, lectures et cycle creation/modification/suppression d'ecriture
 
 ## Acces de demonstration
 
@@ -150,7 +156,11 @@ Mot de passe: admin12345
 - `GET /api/reports/auxiliary-balance`
 - `GET /api/reports/balance-sheet`
 - `GET /api/reports/income-statement`
+- `GET /api/reports/vat-declaration`
+- `GET /api/reports/aged-balance/clients`
+- `GET /api/reports/aged-balance/suppliers`
 - `GET /api/reports/closing-controls`
+- `POST /api/chat`
 
 ## Phase 2
 
@@ -158,4 +168,4 @@ Le suivi detaille est dans `docs/phase-2-status.md`.
 
 ## Prochaine priorite
 
-Brancher l'adapter PostgreSQL runtime et isoler les donnees par organisation sur les modules metier.
+Securiser et industrialiser le deploiement pilote: SMTP reel, PostgreSQL cible, tests de mutations PostgreSQL elargis, sauvegardes et exports serveur PDF/XLS.

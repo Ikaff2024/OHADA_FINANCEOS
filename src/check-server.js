@@ -10,6 +10,7 @@ const server = spawn(process.execPath, ["src/server.js"], {
   env: {
     ...process.env,
     PORT: String(port),
+    OHADA_EXPOSE_AUTH_TOKENS: "true",
     OHADA_DB_PATH: testDbPath,
     OHADA_STORAGE_DIR: testStoragePath,
     OHADA_CORS_ALLOWED_ORIGINS: "http://localhost:9999"
@@ -28,6 +29,7 @@ server.stderr.on("data", (chunk) => {
 try {
   await waitForServer(port);
   await assertProductionStartupGuard();
+  await assertAuthTokensHiddenByDefault();
 
   const health = await fetchJson(`http://localhost:${port}/api/health`);
   assert.equal(health.ok, true);
@@ -52,6 +54,7 @@ try {
   });
   assert.equal(corsPreflight.status, 204);
   assert.equal(corsPreflight.headers.get("access-control-allow-origin"), "http://localhost:9999");
+  assert.match(corsPreflight.headers.get("access-control-allow-headers"), /x-organization-id/);
 
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
@@ -720,14 +723,27 @@ async function waitForServer(targetPort) {
 }
 
 async function assertProductionStartupGuard() {
+  await assertUnsafeProductionConfig({
+    OHADA_DEFAULT_ADMIN_PASSWORD: "admin12345",
+    OHADA_EXPOSE_AUTH_TOKENS: "false"
+  }, /OHADA_DEFAULT_ADMIN_PASSWORD/);
+
+  await assertUnsafeProductionConfig({
+    OHADA_DEFAULT_ADMIN_PASSWORD: "production-password-123",
+    OHADA_EXPOSE_AUTH_TOKENS: "true"
+  }, /OHADA_EXPOSE_AUTH_TOKENS/);
+}
+
+async function assertUnsafeProductionConfig(overrides, expectedError) {
+  const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const guardServer = spawn(process.execPath, ["src/server.js"], {
     env: {
       ...process.env,
       NODE_ENV: "production",
       PORT: "0",
-      OHADA_DEFAULT_ADMIN_PASSWORD: "admin12345",
-      OHADA_DB_PATH: join("data", `guard-db-${Date.now()}.sqlite`),
-      OHADA_STORAGE_DIR: join("data", `guard-storage-${Date.now()}`)
+      ...overrides,
+      OHADA_DB_PATH: join("data", `guard-db-${suffix}.sqlite`),
+      OHADA_STORAGE_DIR: join("data", `guard-storage-${suffix}`)
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -741,7 +757,52 @@ async function assertProductionStartupGuard() {
 
   const exitCode = await new Promise((resolve) => guardServer.once("exit", resolve));
   assert.notEqual(exitCode, 0);
-  assert.match(guardOutput, /OHADA_DEFAULT_ADMIN_PASSWORD/);
+  assert.match(guardOutput, expectedError);
+}
+
+async function assertAuthTokensHiddenByDefault() {
+  const targetPort = 3061;
+  const suffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+  const dbPath = join("data", `token-guard-db-${suffix}.sqlite`);
+  const storagePath = join("data", `token-guard-storage-${suffix}`);
+  const tokenGuardServer = spawn(process.execPath, ["src/server.js"], {
+    env: {
+      ...process.env,
+      PORT: String(targetPort),
+      OHADA_EXPOSE_AUTH_TOKENS: "false",
+      OHADA_DB_PATH: dbPath,
+      OHADA_STORAGE_DIR: storagePath
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  let tokenGuardOutput = "";
+  tokenGuardServer.stdout.on("data", (chunk) => {
+    tokenGuardOutput += chunk.toString();
+  });
+  tokenGuardServer.stderr.on("data", (chunk) => {
+    tokenGuardOutput += chunk.toString();
+  });
+
+  try {
+    await waitForServer(targetPort);
+    const response = await fetch(`http://localhost:${targetPort}/api/auth/password-reset/request`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "admin@demo.ohada" })
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(Object.hasOwn(body, "reset"), false);
+  } catch (error) {
+    if (tokenGuardOutput) console.error(tokenGuardOutput);
+    throw error;
+  } finally {
+    tokenGuardServer.kill();
+    await new Promise((resolve) => tokenGuardServer.once("exit", resolve));
+    await rm(dbPath, { force: true });
+    await rm(storagePath, { recursive: true, force: true });
+  }
 }
 
 async function fetchJson(url) {

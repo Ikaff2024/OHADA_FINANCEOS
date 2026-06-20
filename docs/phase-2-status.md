@@ -1,6 +1,6 @@
 # Phase 2 - Socle Technique
 
-Etat au 2026-05-10.
+Etat au 2026-06-20.
 
 ## Objectif
 
@@ -45,22 +45,32 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Tables metier preparees avec `organization_id` pour l'isolation multi-entreprise.
 - Contexte organisation transmis par l'API pour filtrer les snapshots et rattacher les nouvelles donnees.
 - Tests serveur couvrant les parcours comptables critiques et le nouveau socle phase 2.
+- Roles portes par la relation `organization_users` pour permettre des droits differents selon le dossier.
+- Switcher d'organisation disponible dans l'interface et contexte actif transmis par l'API.
+- Envoi SMTP branche pour les invitations et reinitialisations, avec mode mock sans configuration SMTP.
+- Tokens d'invitation et de reinitialisation masques par defaut dans les reponses API.
+- Garde de demarrage interdisant l'exposition des tokens en production.
+- Deux migrations PostgreSQL appliquees et validees sur PostgreSQL 16.
+- Smoke test PostgreSQL couvrant authentification, lectures, rapports et cycle creation/modification/suppression d'ecriture.
+- Rapports complementaires: declaration de TVA et balances agees clients/fournisseurs.
+- Assistant comptable Gemini branche sur le guide SYSCOHADA lorsque la cle API est configuree.
+- Base SQLite locale retiree du suivi Git tout en restant disponible pour le developpement.
 
 ## Partiellement fait
 
 - Frontend: interface fonctionnelle en HTML/CSS/JavaScript, pas encore migree vers React / Next.js / TypeScript.
 - Backend: API maintenable pour MVP, pas encore migree vers NestJS ou FastAPI.
-- Base de donnees: SQLite solide pour MVP local, schema PostgreSQL pret, healthcheck de transition disponible, lectures/auth, configuration, ecritures manuelles, imports et abonnements branches sur PostgreSQL via flag; il reste le lettrage et les exports serveur.
-- Auth: le flux de connexion, les invitations par lien et la reinitialisation par lien sont disponibles; il reste l'envoi email transactionnel.
+- Base de donnees: SQLite solide pour le developpement local et runtime PostgreSQL fonctionnel; le smoke PostgreSQL ne couvre pas encore tous les parcours imports, lettrage, utilisateurs et jobs.
+- Auth: connexion, invitations, reinitialisation, SMTP et multi-organisation sont branches; il reste a valider un fournisseur SMTP reel et les politiques de delivrabilite.
 - Jobs: worker local disponible pour les exports financiers; il reste a etendre aux imports lourds.
 - Exports: exports navigateur et generation serveur historisee disponibles.
 
 ## Reste a faire pour finir la phase 2
 
-- Brancher l'envoi email transactionnel pour les invitations et la reinitialisation de mot de passe.
-- Ajouter un switcher d'organisation et un parcours d'invitation pour les utilisateurs rattaches a plusieurs dossiers.
-- Appliquer les migrations PostgreSQL sur l'environnement cible.
-- Brancher l'adapter runtime PostgreSQL sur `DATABASE_URL`.
+- Configurer et valider un fournisseur SMTP reel sur l'environnement pilote.
+- Appliquer les migrations PostgreSQL sur l'environnement pilote avec sauvegarde et restauration testees.
+- Elargir le test PostgreSQL aux utilisateurs, imports bancaires, lettrage, periodes et jobs.
+- Documenter et tester les sauvegardes/restaurations SQLite et PostgreSQL.
 - Choisir la trajectoire framework: migration progressive vers Next.js + TypeScript et NestJS/FastAPI, ou stabilisation courte du MVP actuel avant migration.
 - Etendre le worker aux imports lourds et aux exports XLS/PDF.
-- Formaliser les variables d'environnement et un guide de deploiement Render/Fly/Railway/VPS.
+- Completer le guide de deploiement pour une cible choisie et ajouter une procedure de rollback.

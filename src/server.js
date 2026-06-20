@@ -116,6 +116,12 @@ function assertSafeStartupConfig() {
       "Configuration non securisee: OHADA_DEFAULT_ADMIN_PASSWORD doit etre defini avec un mot de passe fort en production."
     );
   }
+
+  if (config.exposeAuthTokens) {
+    throw new Error(
+      "Configuration non securisee: OHADA_EXPOSE_AUTH_TOKENS doit rester desactive en production."
+    );
+  }
 }
 
 function consumeLoginRateLimit(identifier) {
@@ -174,7 +180,7 @@ function applyCorsHeaders(request, response) {
   response.setHeader("access-control-allow-origin", allowedOrigin);
   response.setHeader("vary", "Origin");
   response.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  response.setHeader("access-control-allow-headers", "content-type,authorization");
+  response.setHeader("access-control-allow-headers", "content-type,authorization,x-organization-id");
   return true;
 }
 

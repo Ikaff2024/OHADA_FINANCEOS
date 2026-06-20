@@ -335,7 +335,11 @@ export async function inviteUser(input) {
   // Envoi de l'email asynchrone (ne bloque pas la reponse)
   sendInvitationEmail(user, invitation.token).catch(console.error);
 
-  return { ok: true, user: publicUser(user), invitation };
+  return {
+    ok: true,
+    user: publicUser(user),
+    ...(config.exposeAuthTokens ? { invitation } : {})
+  };
 }
 
 export async function acceptInvitation(input) {
@@ -383,7 +387,11 @@ export async function requestPasswordReset(input) {
   });
   sendPasswordResetEmail(user, reset.token).catch(console.error);
 
-  return { ok: true, message: "Si le compte existe, un lien de reinitialisation a ete envoye.", reset };
+  return {
+    ok: true,
+    message: "Si le compte existe, un lien de reinitialisation a ete envoye.",
+    ...(config.exposeAuthTokens ? { reset } : {})
+  };
 }
 
 export async function resetPassword(input) {

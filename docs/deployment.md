@@ -16,7 +16,13 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 | `OHADA_DEFAULT_ADMIN_PASSWORD` | Mot de passe initial du premier administrateur |
 | `OHADA_SESSION_TTL_HOURS` | Duree de validite des sessions bearer |
 | `OHADA_JOB_WORKER_INTERVAL_MS` | Frequence de traitement de la file de jobs |
+| `OHADA_EXPOSE_AUTH_TOKENS` | Reserve aux tests locaux; doit rester `false` en production |
+| `OHADA_CORS_ALLOWED_ORIGINS` | Origines frontend autorisees, separees par des virgules |
 | `DATABASE_URL` | URL PostgreSQL cible pour le deploiement production |
+| `PGSSLMODE` | Mode SSL PostgreSQL; ne desactiver que pour une base locale |
+| `SMTP_HOST`, `SMTP_PORT` | Serveur SMTP transactionnel |
+| `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Identifiants et expediteur SMTP |
+| `GEMINI_API_KEY` | Cle optionnelle pour l'assistant comptable |
 
 ## Chemin recommande
 
@@ -75,6 +81,7 @@ OHADA_DB_RUNTIME=postgres
 ## Points d'attention production
 
 - Changer `OHADA_DEFAULT_ADMIN_PASSWORD` avant tout deploiement partage.
+- Laisser `OHADA_EXPOSE_AUTH_TOKENS=false` en production.
 - Configurer `APP_URL` avec l'URL HTTPS publique avant d'envoyer des invitations.
 - Monter `OHADA_STORAGE_DIR` sur un volume persistant.
 - Sauvegarder la base quotidiennement.

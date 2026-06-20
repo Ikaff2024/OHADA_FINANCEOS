@@ -53,13 +53,59 @@ try {
   assert.equal(Array.isArray(trialBalance), true);
   assert.equal(typeof balanceSheet.assets, "number");
 
+  const reference = `PG-SMOKE-${Date.now()}`;
+  const createdEntry = await fetchJson("/api/journal-entries", {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({
+      date: "2026-06-20",
+      reference,
+      description: "Smoke test PostgreSQL",
+      source: "OD",
+      lines: [
+        { accountCode: "5211", debit: 1000, credit: 0 },
+        { accountCode: "7061", debit: 0, credit: 1000 }
+      ]
+    })
+  });
+  assert.equal(createdEntry.reference, reference);
+
+  const updatedEntry = await fetchJson(`/api/journal-entries/${createdEntry.id}`, {
+    method: "PUT",
+    headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({
+      date: "2026-06-20",
+      reference,
+      description: "Smoke test PostgreSQL modifie",
+      source: "OD",
+      lines: [
+        { accountCode: "5211", debit: 1500, credit: 0 },
+        { accountCode: "7061", debit: 0, credit: 1500 }
+      ]
+    })
+  });
+  assert.equal(updatedEntry.entry.description, "Smoke test PostgreSQL modifie");
+
+  const ledgerAfterUpdate = await fetchJson("/api/reports/general-ledger", { headers });
+  assert.equal(ledgerAfterUpdate.some((row) => row.reference === reference && row.debit === 1500), true);
+
+  const deletedEntry = await fetchJson(`/api/journal-entries/${createdEntry.id}`, {
+    method: "DELETE",
+    headers
+  });
+  assert.equal(deletedEntry.entry.id, createdEntry.id);
+
+  const missingEntry = await fetch(`http://localhost:${port}/api/journal-entries/${createdEntry.id}`, { headers });
+  assert.equal(missingEntry.status, 404);
+
   console.log(JSON.stringify({
     ok: true,
     runtime: health.config.runtimeDatabase,
     organization: login.organization?.id,
     accounts: accounts.length,
     entries: entries.length,
-    trialBalanceRows: trialBalance.length
+    trialBalanceRows: trialBalance.length,
+    mutationCycle: "create-update-delete"
   }, null, 2));
 } catch (error) {
   if (output) console.error(output);
