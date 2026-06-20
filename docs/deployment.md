@@ -14,12 +14,16 @@ Copier `.env.example` vers `.env` en local ou configurer les memes variables che
 | `OHADA_STORAGE_DIR` | Dossier de stockage local des exports et fichiers |
 | `OHADA_DEFAULT_ADMIN_EMAIL` | Email du premier administrateur cree au demarrage |
 | `OHADA_DEFAULT_ADMIN_PASSWORD` | Mot de passe initial du premier administrateur |
+| `OHADA_DEFAULT_ORGANIZATION_ID`, `OHADA_DEFAULT_COMPANY_NAME` | Identite du premier dossier PostgreSQL |
+| `OHADA_DEFAULT_COUNTRY`, `OHADA_DEFAULT_CURRENCY` | Pays et devise du premier dossier |
+| `OHADA_DEFAULT_FISCAL_YEAR_START`, `OHADA_DEFAULT_FISCAL_YEAR_END` | Premier exercice comptable |
 | `OHADA_SESSION_TTL_HOURS` | Duree de validite des sessions bearer |
 | `OHADA_JOB_WORKER_INTERVAL_MS` | Frequence de traitement de la file de jobs |
 | `OHADA_EXPOSE_AUTH_TOKENS` | Reserve aux tests locaux; doit rester `false` en production |
 | `OHADA_CORS_ALLOWED_ORIGINS` | Origines frontend autorisees, separees par des virgules |
 | `DATABASE_URL` | URL PostgreSQL cible pour le deploiement production |
 | `PGSSLMODE` | Mode SSL PostgreSQL; ne desactiver que pour une base locale |
+| `OHADA_PG_CONNECTION_TIMEOUT_MS` | Timeout de connexion PostgreSQL utilise par l'application et les healthchecks |
 | `PG_DOCKER_CONTAINER` | Conteneur local optionnel contenant `pg_dump` et `pg_restore` |
 | `PG_BIN_DIR` | Repertoire optionnel des outils PostgreSQL natifs |
 | `SMTP_HOST`, `SMTP_PORT` | Serveur SMTP transactionnel |
@@ -79,6 +83,32 @@ OHADA_DB_RUNTIME=postgres
 5. Brancher les mutations metier restantes sur l'adapter PostgreSQL.
 6. Deployer sur Render, Fly, Railway ou VPS avec stockage local persistant.
 7. Remplacer ensuite le stockage local par un service S3-compatible.
+
+## Stack pilote Docker
+
+Creer la configuration locale non versionnee puis remplacer tous les secrets et URLs:
+
+```bash
+copy .env.production.example .env.production
+npm.cmd run pilot:up
+```
+
+La stack applique les migrations, initialise le premier dossier et son proprietaire uniquement si la base est vide, puis demarre l'application. Verifier ensuite:
+
+```bash
+curl http://localhost:3050/api/health
+npm.cmd run pilot:logs
+```
+
+Commandes d'exploitation:
+
+```bash
+npm.cmd run pilot:backup
+npm.cmd run pilot:restore -- data/backups/sauvegarde.dump --confirm
+npm.cmd run pilot:down
+```
+
+`pilot:down` conserve les volumes. Ne pas utiliser `docker compose down -v` sur un environnement contenant des donnees utiles. Placer un reverse proxy HTTPS devant le port applicatif et ne pas exposer directement PostgreSQL.
 
 ## Verification SMTP
 

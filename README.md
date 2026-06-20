@@ -14,6 +14,14 @@ Puis ouvrir:
 http://localhost:3050
 ```
 
+Pour lancer la stack pilote PostgreSQL avec Docker:
+
+```bash
+copy .env.production.example .env.production
+# Remplacer les mots de passe et URLs dans .env.production
+npm.cmd run pilot:up
+```
+
 Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
 La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.example` liste les variables attendues.
 

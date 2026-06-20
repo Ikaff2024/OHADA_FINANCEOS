@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.production
+node_modules
+data
+storage/uploads
+docs
+*.docx
+Ohada_syscohada_plan_comptable.pdf
+C-african-sophisticated.html
+.aider*
+npm-debug.log*
+test-ai.js
+scripts/patch.js

@@ -4,9 +4,11 @@ import { createPostgresClient } from "./postgresRuntime.js";
 
 export async function databaseHealth({ checkPostgres = false } = {}) {
   const sqlite = await sqliteHealth();
-  const postgres = await postgresHealth(checkPostgres);
+  const postgres = await postgresHealth(checkPostgres || config.runtimeDatabase === "postgres");
+  const ok = config.runtimeDatabase === "postgres" ? postgres.ok === true : sqlite.ok;
 
   return {
+    ok,
     runtime: publicConfig.runtimeDatabase,
     sqlite,
     postgres

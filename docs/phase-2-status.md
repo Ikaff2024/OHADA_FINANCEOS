@@ -59,6 +59,8 @@ Construire une base propre, maintenable et prete a evoluer vers un produit comme
 - Sauvegarde et restauration PostgreSQL validees sur une base distincte avec controle des volumes et smoke API.
 - E2E PostgreSQL complet sur base jetable: utilisateurs, invitations, reset, periodes, verrouillage, ecritures, lettrage, import bancaire et jobs d'export.
 - Contrat PostgreSQL des jobs et fichiers aligne sur SQLite, avec exports serveur fonctionnels.
+- Stack pilote Docker validee de bout en bout: build, migrations, bootstrap, persistance, redemarrage et healthcheck PostgreSQL.
+- Perte PostgreSQL geree sans crash applicatif: healthcheck 503 pendant l'incident puis retour automatique a 200.
 
 ## Partiellement fait
 

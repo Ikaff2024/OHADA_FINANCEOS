@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ohada-financeos-pilot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ohada}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit etre defini}
+      POSTGRES_DB: ${POSTGRES_DB:-ohada_financeos}
+    volumes:
+      - ohada_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ohada} -d ${POSTGRES_DB:-ohada_financeos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ohada-financeos-pilot-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3050
+      OHADA_DB_RUNTIME: postgres
+      OHADA_STORAGE_DIR: /app/storage/uploads
+      DATABASE_URL: postgres://${POSTGRES_USER:-ohada}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ohada_financeos}
+      PGSSLMODE: disable
+    command:
+      - sh
+      - -c
+      - node scripts/migrate-postgres.js && node scripts/bootstrap-postgres.js && exec node --no-warnings src/server.js
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${OHADA_HTTP_PORT:-3050}:3050"
+    volumes:
+      - ohada_uploads:/app/storage/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3050/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+volumes:
+  ohada_postgres_data:
+  ohada_uploads:

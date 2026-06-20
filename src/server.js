@@ -103,15 +103,35 @@ server.listen(port, () => {
   console.log(`OHADA FinanceOS MVP disponible sur http://localhost:${port}`);
 });
 
-setInterval(() => {
+const jobWorker = setInterval(() => {
   processNextJob().catch((error) => console.error("Erreur worker jobs", error));
 }, config.jobWorkerIntervalMs);
+
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, () => shutdown(signal));
+}
+
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Arret ${signal}: fermeture du serveur OHADA FinanceOS.`);
+  clearInterval(jobWorker);
+  server.close(() => process.exit(0));
+  setTimeout(() => {
+    server.closeAllConnections?.();
+    process.exit(1);
+  }, 10000).unref();
+}
 
 function assertSafeStartupConfig() {
   const isProduction = String(process.env.NODE_ENV || "").toLowerCase() === "production";
   if (!isProduction) return;
 
-  if (config.defaultAdminPassword === "admin12345") {
+  if (
+    ["admin12345", "change-me-before-production"].includes(config.defaultAdminPassword)
+    || config.defaultAdminPassword.length < 12
+  ) {
     throw new Error(
       "Configuration non securisee: OHADA_DEFAULT_ADMIN_PASSWORD doit etre defini avec un mot de passe fort en production."
     );
@@ -736,18 +756,19 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, {
-      ok: true,
+    const database = await databaseHealth();
+    sendJson(response, database.ok ? 200 : 503, {
+      ok: database.ok,
       service: "ohada-financeos-mvp",
       config: publicConfig,
-      database: await databaseHealth()
+      database
     });
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/health/database") {
     const database = await databaseHealth({ checkPostgres: url.searchParams.get("checkPostgres") === "1" });
-    sendJson(response, database.sqlite.ok ? 200 : 503, { ok: database.sqlite.ok, database });
+    sendJson(response, database.ok ? 200 : 503, { ok: database.ok, database });
     return;
   }
 

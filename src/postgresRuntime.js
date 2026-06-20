@@ -16,15 +16,25 @@ export function postgresSslConfig() {
 export function createPostgresClient() {
   return new Client({
     connectionString: requirePostgresUrl(),
-    ssl: postgresSslConfig()
+    ssl: postgresSslConfig(),
+    connectionTimeoutMillis: postgresConnectionTimeoutMs()
   });
 }
 
 export function createPostgresPool() {
-  return new Pool({
+  const pool = new Pool({
     connectionString: requirePostgresUrl(),
-    ssl: postgresSslConfig()
+    ssl: postgresSslConfig(),
+    connectionTimeoutMillis: postgresConnectionTimeoutMs()
   });
+  pool.on("error", (error) => {
+    console.error("Erreur client PostgreSQL inactif:", error.message);
+  });
+  return pool;
+}
+
+function postgresConnectionTimeoutMs() {
+  return Math.max(500, Number(process.env.OHADA_PG_CONNECTION_TIMEOUT_MS || 3000));
 }
 
 export function createPostgresRuntime(clientOrPool = createPostgresPool()) {

@@ -5,7 +5,18 @@ import { join } from "node:path";
 import { config } from "../src/config.js";
 
 export function postgresConnection() {
-  if (!config.databaseUrl) throw new Error("DATABASE_URL est obligatoire.");
+  if (!config.databaseUrl) {
+    const user = String(process.env.POSTGRES_USER || "").trim();
+    const database = String(process.env.POSTGRES_DB || "").trim();
+    if (!user || !database) throw new Error("DATABASE_URL ou POSTGRES_USER/POSTGRES_DB sont obligatoires.");
+    return {
+      host: String(process.env.POSTGRES_HOST || "localhost").trim(),
+      port: String(process.env.POSTGRES_PORT || "5432").trim(),
+      user,
+      password: String(process.env.POSTGRES_PASSWORD || ""),
+      database
+    };
+  }
   const url = new URL(config.databaseUrl);
   return {
     host: url.hostname,
