@@ -27,15 +27,50 @@
     mount();
   }
 
+  // When a form submit triggers a network request, disable its submit button
+  // until the network is idle again — prevents duplicate submissions (e.g. a
+  // double-click creating a journal entry twice).
+  var pendingSubmitBtn = null;
+  document.addEventListener(
+    "submit",
+    function (event) {
+      var form = event.target;
+      if (!form || form.tagName !== "FORM") return;
+      pendingSubmitBtn =
+        event.submitter || form.querySelector('button[type="submit"], button:not([type])');
+      // If no request starts in this tick (e.g. client-side validation failed),
+      // drop the reference so the button is never left disabled.
+      setTimeout(function () {
+        pendingSubmitBtn = null;
+      }, 0);
+    },
+    true
+  );
+
   var active = 0;
   function start() {
     active += 1;
     mount();
     bar.classList.add("is-active");
+    if (pendingSubmitBtn) {
+      var btn = pendingSubmitBtn;
+      pendingSubmitBtn = null;
+      if (!btn.disabled) {
+        btn.disabled = true;
+        btn.setAttribute("data-submit-busy", "1");
+      }
+    }
   }
   function done() {
     active = Math.max(0, active - 1);
-    if (active === 0) bar.classList.remove("is-active");
+    if (active === 0) {
+      bar.classList.remove("is-active");
+      var busy = document.querySelectorAll('[data-submit-busy="1"]');
+      for (var i = 0; i < busy.length; i += 1) {
+        busy[i].disabled = false;
+        busy[i].removeAttribute("data-submit-busy");
+      }
+    }
   }
 
   // ---- Toasts -------------------------------------------------------------
