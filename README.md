@@ -29,6 +29,11 @@ Pour la mise en ligne sur Railway (cible d'hebergement retenue), suivre le guide
 pas-a-pas `docs/deployment-railway.md` (`railway.json` configure deja le build et
 le demarrage).
 
+Documentation complementaire:
+- `docs/runbook.md` — exploitation en production (sante, logs, deploiement, rollback, incidents, sauvegardes).
+- `docs/openapi.yaml` — contrat OpenAPI de l'API (ouvrir dans editor.swagger.io).
+- `docs/production-readiness.md` — plan de mise en production par phases.
+
 ## Qualite
 
 ```bash

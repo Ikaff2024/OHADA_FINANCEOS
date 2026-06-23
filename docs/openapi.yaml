@@ -1,0 +1,312 @@
+openapi: 3.0.3
+info:
+  title: OHADA FinanceOS API
+  version: "0.1.0"
+  description: >
+    API JSON de OHADA FinanceOS (comptabilité SYSCOHADA). Sauf les routes
+    publiques de santé et d'authentification, toutes les routes exigent un jeton
+    de session (Authorization: Bearer <token>) et, pour les comptes
+    multi-organisations, l'en-tête `x-organization-id`.
+servers:
+  - url: https://ohadafinanceos-production.up.railway.app
+    description: Production (Railway)
+  - url: http://localhost:3050
+    description: Développement local
+
+tags:
+  - name: Système
+  - name: Authentification
+  - name: Organisations & Utilisateurs
+  - name: Données de base
+  - name: Écritures & Périodes
+  - name: Trésorerie
+  - name: États financiers
+  - name: Jobs & Fichiers
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    OrganizationHeader:
+      name: x-organization-id
+      in: header
+      required: false
+      schema: { type: string }
+      description: Organisation active (pour les utilisateurs multi-organisations).
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        errors:
+          type: array
+          items: { type: string }
+    JournalLine:
+      type: object
+      required: [accountCode]
+      properties:
+        accountCode: { type: string, example: "5211" }
+        auxiliaryCode: { type: string, nullable: true }
+        label: { type: string }
+        debit: { type: number, example: 100000 }
+        credit: { type: number, example: 0 }
+    JournalEntry:
+      type: object
+      required: [date, reference, description, lines]
+      properties:
+        id: { type: string, readOnly: true }
+        date: { type: string, format: date, example: "2026-02-01" }
+        reference: { type: string, example: "VTE-001" }
+        description: { type: string, example: "Vente à crédit" }
+        source:
+          type: string
+          enum: [manual, bank-csv, subscription, seed]
+          default: manual
+        lines:
+          type: array
+          minItems: 2
+          items: { $ref: "#/components/schemas/JournalLine" }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        token: { type: string }
+        user: { type: object }
+        organization: { type: object }
+        availableOrganizations:
+          type: array
+          items: { type: object }
+        expiresAt: { type: string, format: date-time }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/health:
+    get:
+      tags: [Système]
+      summary: État de santé (public)
+      security: []
+      responses:
+        "200": { description: Service et base OK }
+        "503": { description: Base de données indisponible }
+  /api/health/database:
+    get:
+      tags: [Système]
+      summary: État détaillé de la base (public)
+      security: []
+      parameters:
+        - name: checkPostgres
+          in: query
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200": { description: OK }
+        "503": { description: Indisponible }
+  /api/metrics:
+    get:
+      tags: [Système]
+      summary: Métriques Prometheus (texte)
+      description: Protégé par `OHADA_METRICS_TOKEN` si défini.
+      security: []
+      responses:
+        "200": { description: Exposition Prometheus (text/plain) }
+        "401": { description: Token requis }
+  /api/client-errors:
+    post:
+      tags: [Système]
+      summary: Reçoit les erreurs JavaScript du navigateur (public)
+      security: []
+      responses:
+        "204": { description: Enregistré }
+
+  /api/auth/login:
+    post:
+      tags: [Authentification]
+      summary: Connexion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Connecté
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { description: Identifiants invalides }
+        "429": { description: Trop de tentatives }
+  /api/auth/logout:
+    post: { tags: [Authentification], summary: Déconnexion, responses: { "200": { description: OK } } }
+  /api/auth/me:
+    get:
+      tags: [Authentification]
+      summary: Profil de la session courante
+      responses:
+        "200": { description: Profil }
+        "401": { description: Non authentifié }
+  /api/auth/invitations/accept:
+    post: { tags: [Authentification], summary: Accepter une invitation, security: [], responses: { "200": { description: OK } } }
+  /api/auth/password-reset/request:
+    post: { tags: [Authentification], summary: Demander une réinitialisation, security: [], responses: { "200": { description: OK } } }
+  /api/auth/password-reset/confirm:
+    post: { tags: [Authentification], summary: Confirmer une réinitialisation, security: [], responses: { "200": { description: OK } } }
+
+  /api/organizations:
+    get: { tags: [Organisations & Utilisateurs], summary: Lister les organisations, responses: { "200": { description: OK } } }
+    post: { tags: [Organisations & Utilisateurs], summary: Créer une organisation, responses: { "201": { description: Créé }, "422": { description: Validation } } }
+  /api/users:
+    get: { tags: [Organisations & Utilisateurs], summary: Lister les utilisateurs, responses: { "200": { description: OK } } }
+    post: { tags: [Organisations & Utilisateurs], summary: Créer un utilisateur, responses: { "201": { description: Créé } } }
+  /api/users/invitations:
+    post: { tags: [Organisations & Utilisateurs], summary: Inviter un utilisateur, responses: { "201": { description: Créé } } }
+  /api/users/{id}:
+    patch:
+      tags: [Organisations & Utilisateurs]
+      summary: Modifier un utilisateur (rôle, statut)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+
+  /api/company:
+    get: { tags: [Données de base], summary: Lire la société, responses: { "200": { description: OK } } }
+    put: { tags: [Données de base], summary: Mettre à jour la société, responses: { "200": { description: OK } } }
+  /api/accounts:
+    get: { tags: [Données de base], summary: Lister les comptes, responses: { "200": { description: OK } } }
+    post: { tags: [Données de base], summary: Créer un compte, responses: { "201": { description: Créé } } }
+  /api/account-classes:
+    get: { tags: [Données de base], summary: Classes du plan comptable, responses: { "200": { description: OK } } }
+  /api/journals:
+    get: { tags: [Données de base], summary: Lister les journaux, responses: { "200": { description: OK } } }
+    post: { tags: [Données de base], summary: Créer un journal, responses: { "201": { description: Créé } } }
+  /api/auxiliary-accounts:
+    get: { tags: [Données de base], summary: Lister les comptes auxiliaires, responses: { "200": { description: OK } } }
+    post: { tags: [Données de base], summary: Créer un compte auxiliaire, responses: { "201": { description: Créé } } }
+
+  /api/accounting-periods:
+    get: { tags: [Écritures & Périodes], summary: Lister les exercices, responses: { "200": { description: OK } } }
+    post: { tags: [Écritures & Périodes], summary: Créer un exercice, responses: { "201": { description: Créé } } }
+  /api/accounting-periods/{id}/lock:
+    post:
+      tags: [Écritures & Périodes]
+      summary: Verrouiller un exercice
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+  /api/accounting-periods/{id}/unlock:
+    post:
+      tags: [Écritures & Périodes]
+      summary: Déverrouiller un exercice
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK } }
+  /api/journal-entries:
+    get:
+      tags: [Écritures & Périodes]
+      summary: Lister les écritures
+      responses: { "200": { description: OK } }
+    post:
+      tags: [Écritures & Périodes]
+      summary: Créer une écriture équilibrée
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JournalEntry" }
+      responses:
+        "201": { description: Créé }
+        "422":
+          description: Écriture invalide ou déséquilibrée
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /api/journal-entries/{id}:
+    get:
+      tags: [Écritures & Périodes]
+      summary: Détail d'une écriture
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK }, "404": { description: Introuvable } }
+    put:
+      tags: [Écritures & Périodes]
+      summary: Modifier une écriture (exercice ouvert)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JournalEntry" }
+      responses: { "200": { description: OK }, "422": { description: Invalide } }
+    delete:
+      tags: [Écritures & Périodes]
+      summary: Supprimer une écriture (exercice ouvert)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Supprimé } }
+
+  /api/bank-imports/sample:
+    get: { tags: [Trésorerie], summary: Modèle CSV bancaire, responses: { "200": { description: CSV } } }
+  /api/bank-imports/preview:
+    post: { tags: [Trésorerie], summary: Prévisualiser un import CSV, responses: { "200": { description: Aperçu avec suggestions } } }
+  /api/bank-imports/commit:
+    post: { tags: [Trésorerie], summary: Valider un import, responses: { "201": { description: Importé } } }
+  /api/bank-imports/batches:
+    get: { tags: [Trésorerie], summary: Historique des lots d'import, responses: { "200": { description: OK } } }
+  /api/bank-imports/batches/{id}/void:
+    post:
+      tags: [Trésorerie]
+      summary: Annuler un lot d'import
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Annulé } }
+  /api/subscriptions:
+    get: { tags: [Trésorerie], summary: Lister les abonnements, responses: { "200": { description: OK } } }
+    post: { tags: [Trésorerie], summary: Générer des écritures d'abonnement, responses: { "201": { description: Généré } } }
+  /api/lettering:
+    get: { tags: [Trésorerie], summary: État du lettrage, responses: { "200": { description: OK } } }
+  /api/lettering/manual:
+    post: { tags: [Trésorerie], summary: Lettrage manuel, responses: { "200": { description: OK } } }
+  /api/lettering/auto:
+    post: { tags: [Trésorerie], summary: Lettrage automatique, responses: { "200": { description: OK } } }
+
+  /api/reports/trial-balance:
+    get: { tags: [États financiers], summary: Balance générale, parameters: [{ name: from, in: query, schema: { type: string, format: date } }, { name: to, in: query, schema: { type: string, format: date } }], responses: { "200": { description: OK } } }
+  /api/reports/general-ledger:
+    get: { tags: [États financiers], summary: Grand livre, responses: { "200": { description: OK } } }
+  /api/reports/auxiliary-balance:
+    get: { tags: [États financiers], summary: Balance auxiliaire, responses: { "200": { description: OK } } }
+  /api/reports/balance-sheet:
+    get: { tags: [États financiers], summary: Bilan SYSCOHADA, responses: { "200": { description: OK } } }
+  /api/reports/income-statement:
+    get: { tags: [États financiers], summary: Compte de résultat SYSCOHADA, responses: { "200": { description: OK } } }
+  /api/reports/vat-declaration:
+    get: { tags: [États financiers], summary: Déclaration de TVA, responses: { "200": { description: OK } } }
+  /api/reports/aged-balance/clients:
+    get: { tags: [États financiers], summary: Balance âgée clients, responses: { "200": { description: OK } } }
+  /api/reports/aged-balance/suppliers:
+    get: { tags: [États financiers], summary: Balance âgée fournisseurs, responses: { "200": { description: OK } } }
+  /api/reports/closing-controls:
+    get: { tags: [États financiers], summary: Contrôles de clôture, responses: { "200": { description: OK } } }
+  /api/reports/export:
+    post: { tags: [États financiers], summary: Lancer un export serveur (job), responses: { "201": { description: Job créé } } }
+
+  /api/jobs:
+    get: { tags: [Jobs & Fichiers], summary: Lister les jobs, responses: { "200": { description: OK } } }
+    post: { tags: [Jobs & Fichiers], summary: Créer un job, responses: { "201": { description: Créé } } }
+  /api/files:
+    get: { tags: [Jobs & Fichiers], summary: Lister les fichiers stockés, responses: { "200": { description: OK } } }
+  /api/files/text:
+    post: { tags: [Jobs & Fichiers], summary: Enregistrer un fichier texte, responses: { "201": { description: Créé } } }
+  /api/files/{id}/content:
+    get:
+      tags: [Jobs & Fichiers]
+      summary: Télécharger le contenu d'un fichier
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: Contenu }, "404": { description: Introuvable } }
+  /api/audit-events:
+    get: { tags: [Jobs & Fichiers], summary: Journal d'audit, responses: { "200": { description: OK } } }
+  /api/chat:
+    post: { tags: [Système], summary: Assistant comptable (Gemini si configuré), responses: { "200": { description: Réponse } } }
