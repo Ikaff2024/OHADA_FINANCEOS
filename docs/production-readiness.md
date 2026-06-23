@@ -47,7 +47,7 @@ tests SQLite, e2e PostgreSQL ou audit échouent.
 | Observabilité | ✅ | Logger JSON structuré natif (`src/logger.js`), `request-id` de corrélation propagé, redaction des secrets, niveaux via `LOG_LEVEL`, access-log par requête |
 | Sécurité HTTP | ✅ | CSP stricte, COOP, HSTS (opt-in `OHADA_ENABLE_HSTS`), limite de taille de body (`413`), timeouts de requête |
 | Métriques | ✅ | Endpoint Prometheus `GET /api/metrics` (uptime, heap/rss, `http_requests_total`, histogramme de latence), protégeable par `OHADA_METRICS_TOKEN` |
-| Suivi des erreurs | ⬜ | Sentry (ou équivalent) pour les exceptions non gérées |
+| Suivi des erreurs | ✅ | Auto-hébergé : `uncaughtException`/`unhandledRejection` + erreurs navigateur via `POST /api/client-errors`, tracées en logs structurés (visibles dans Railway). Alerting externe (Sentry) optionnel plus tard |
 | Protection CSRF | ⬜ | À ajouter si bascule vers cookies ; aujourd'hui auth par bearer token (non vulnérable CSRF) |
 | Sessions partagées | ⬜ | Externaliser sessions + rate-limit (PostgreSQL/Redis) pour permettre le multi-instance |
 | Secrets | ⬜ | Sortir du `.env` clair → Docker secrets / SOPS / vault cloud ; rotation admin par défaut forcée |
@@ -63,9 +63,9 @@ alerte) en moins de 5 min ; l'app tourne en ≥ 2 instances sans perte de sessio
 | --- | --- |
 | PostgreSQL par défaut en prod | SQLite réservé au dev ; pooling, SSL, timeouts |
 | Worker jobs robuste | 🟡 Retry borné (`OHADA_MAX_JOB_ATTEMPTS`) + re-queue + dead-letter ajoutés ; claim concurrent sûr (`FOR UPDATE SKIP LOCKED` côté PostgreSQL). Reste : sortir le `setInterval` dans un process worker dédié et compteur de tentatives persistant en base |
-| Stockage S3-compatible | Remplacer le stockage disque local (déjà anticipé dans le code) |
+| Stockage persistant | 🟡 Volume Railway monté sur `/app/storage/uploads` (écriture validée) ; S3-compatible reste une option future |
 | Exports serveur PDF/XLS | Fiabiliser la génération des états financiers côté serveur |
-| Isolation multi-tenant | Tester le filtrage `organization_id` sur **toutes** les routes (fuite inter-dossiers = critique) |
+| Isolation multi-tenant | ✅ Garantie d'isolation testée (`test/multitenant.test.js`) : un `x-organization-id` usurpé ne fuit jamais |
 | Tests de charge | Sur les endpoints rapports (les plus lourds) |
 
 **Definition of Done** : un crash du worker n'impacte pas l'API ; aucune donnée
@@ -73,13 +73,13 @@ d'une organisation n'est accessible depuis une autre (test automatisé).
 
 ## Phase 3 — Conformité métier & exploitation 🟠 (continu)
 
-| Action | Détail |
-| --- | --- |
-| Validation comptable OHADA | Jeu de tests « golden » sur balance/bilan/résultat/TVA validés par un expert-comptable |
-| Piste d'audit immuable | Garantir non-altérabilité + horodatage du journal d'audit existant |
-| Runbook d'exploitation | On-call, alerting, procédure incident, page de statut |
-| RGPD / données financières | Chiffrement au repos, politique de rétention, droit à l'effacement |
-| Documentation API | OpenAPI/Swagger pour les 38 endpoints ; guide de déploiement par cible cloud |
+| Action | État | Détail |
+| --- | --- | --- |
+| Tests « golden » des calculs | 🟡 | Régression verrouillée : `test/accounting.test.js` + `test/syscohada-reports.test.js` (bilan, résultat, TVA). Reste la **validation par un expert-comptable** sur un jeu de référence |
+| Piste d'audit immuable | ⬜ | Garantir non-altérabilité + horodatage du journal d'audit existant |
+| Runbook d'exploitation | ✅ | `docs/runbook.md` (santé, logs, déploiement, rollback, incidents, sauvegardes) |
+| RGPD / données financières | ⬜ | Chiffrement au repos, politique de rétention, droit à l'effacement |
+| Documentation API | ✅ | `docs/openapi.yaml` (OpenAPI 3.0) + guide de déploiement Railway |
 
 **Definition of Done** : les états financiers sont validés par un comptable sur
 un jeu de référence ; un runbook permet à un ingénieur d'astreinte de gérer un
