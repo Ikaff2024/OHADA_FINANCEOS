@@ -6,13 +6,17 @@ import { createPostgresClient } from "../src/postgresRuntime.js";
 import { rootDir } from "../src/config.js";
 
 const port = Number(process.env.PG_FULL_E2E_PORT || 3065);
-const databaseName = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid").pathname.slice(1);
+const databaseName = new URL(
+  process.env.DATABASE_URL || "postgres://invalid/invalid"
+).pathname.slice(1);
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL est obligatoire pour le test PostgreSQL complet.");
   process.exit(1);
 }
 if (!/(test|e2e)/i.test(databaseName) && process.env.PG_FULL_E2E_ALLOW_NON_TEST !== "true") {
-  console.error(`Test refuse sur la base '${databaseName}'. Utilisez une base dont le nom contient test ou e2e.`);
+  console.error(
+    `Test refuse sur la base '${databaseName}'. Utilisez une base dont le nom contient test ou e2e.`
+  );
   process.exit(1);
 }
 
@@ -43,8 +47,12 @@ const server = spawn(process.execPath, ["src/server.js"], {
 });
 
 let output = "";
-server.stdout.on("data", (chunk) => { output += chunk.toString(); });
-server.stderr.on("data", (chunk) => { output += chunk.toString(); });
+server.stdout.on("data", (chunk) => {
+  output += chunk.toString();
+});
+server.stderr.on("data", (chunk) => {
+  output += chunk.toString();
+});
 
 try {
   await waitForServer();
@@ -71,7 +79,11 @@ try {
   const invitation = await fetchJson("/api/users/invitations", {
     method: "POST",
     headers: authHeaders,
-    body: JSON.stringify({ email: userEmail, name: "Utilisateur PostgreSQL E2E", role: "accountant" })
+    body: JSON.stringify({
+      email: userEmail,
+      name: "Utilisateur PostgreSQL E2E",
+      role: "accountant"
+    })
   });
   artifacts.userId = invitation.user.id;
   assert.equal(typeof invitation.invitation.token, "string");
@@ -91,7 +103,11 @@ try {
   const updatedUser = await fetchJson(`/api/users/${artifacts.userId}`, {
     method: "PATCH",
     headers: authHeaders,
-    body: JSON.stringify({ name: "Utilisateur PostgreSQL E2E Senior", role: "viewer", status: "active" })
+    body: JSON.stringify({
+      name: "Utilisateur PostgreSQL E2E Senior",
+      role: "viewer",
+      status: "active"
+    })
   });
   assert.equal(updatedUser.user.role, "viewer");
 
@@ -141,7 +157,10 @@ try {
   assert.equal(lettering.matchedLineCount >= 2, true);
   artifacts.letteringGroupIds.push(...lettering.groups.map((group) => group.id));
 
-  await fetchJson(`/api/accounting-periods/${periodId}/lock`, { method: "POST", headers: authHeaders });
+  await fetchJson(`/api/accounting-periods/${periodId}/lock`, {
+    method: "POST",
+    headers: authHeaders
+  });
   const lockedWrite = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
     headers: authHeaders,
@@ -156,7 +175,10 @@ try {
     })
   });
   assert.equal(lockedWrite.status, 423);
-  await fetchJson(`/api/accounting-periods/${periodId}/unlock`, { method: "POST", headers: authHeaders });
+  await fetchJson(`/api/accounting-periods/${periodId}/unlock`, {
+    method: "POST",
+    headers: authHeaders
+  });
 
   const csv = [
     "date,description,amount",
@@ -194,27 +216,38 @@ try {
   artifacts.fileId = finishedJob.result.fileId;
   artifacts.filePath = finishedJob.result.path;
 
-  const exportedFile = await fetch(`http://localhost:${port}/api/files/${artifacts.fileId}/content`, { headers: authHeaders });
+  const exportedFile = await fetch(
+    `http://localhost:${port}/api/files/${artifacts.fileId}/content`,
+    { headers: authHeaders }
+  );
   assert.equal(exportedFile.status, 200);
   const exportedJson = await exportedFile.json();
   assert.equal(Array.isArray(exportedJson.trialBalance), true);
 
-  console.log(JSON.stringify({
-    ok: true,
-    database: databaseName,
-    users: "invite-accept-update-reset-login",
-    periods: "create-lock-block-unlock",
-    letteringGroups: artifacts.letteringGroupIds.length,
-    bankTransactions: committedImport.importedCount,
-    exportJob: finishedJob.status
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        database: databaseName,
+        users: "invite-accept-update-reset-login",
+        periods: "create-lock-block-unlock",
+        letteringGroups: artifacts.letteringGroupIds.length,
+        bankTransactions: committedImport.importedCount,
+        exportJob: finishedJob.status
+      },
+      null,
+      2
+    )
+  );
 } catch (error) {
   if (output) console.error(output);
   throw error;
 } finally {
   if (!server.killed) server.kill();
   if (server.exitCode === null) await new Promise((resolve) => server.once("exit", resolve));
-  await cleanupArtifacts().catch((error) => console.error(`Nettoyage PostgreSQL incomplet: ${error.message}`));
+  await cleanupArtifacts().catch((error) =>
+    console.error(`Nettoyage PostgreSQL incomplet: ${error.message}`)
+  );
 }
 
 async function createEntry(headers, entry) {
@@ -257,7 +290,8 @@ function jsonHeaders(token) {
 
 async function fetchJson(pathname, options = {}) {
   const response = await fetch(`http://localhost:${port}${pathname}`, options);
-  if (!response.ok) throw new Error(`HTTP ${response.status} sur ${pathname}: ${await response.text()}`);
+  if (!response.ok)
+    throw new Error(`HTTP ${response.status} sur ${pathname}: ${await response.text()}`);
   return response.json();
 }
 
@@ -272,15 +306,23 @@ async function cleanupArtifacts() {
   try {
     await client.query("BEGIN");
     if (artifacts.letteringGroupIds.length > 0) {
-      await client.query("DELETE FROM lettering_groups WHERE id = ANY($1::text[])", [artifacts.letteringGroupIds]);
+      await client.query("DELETE FROM lettering_groups WHERE id = ANY($1::text[])", [
+        artifacts.letteringGroupIds
+      ]);
     }
     if (artifacts.entryIds.length > 0) {
-      await client.query("DELETE FROM journal_lines WHERE entry_id = ANY($1::text[])", [artifacts.entryIds]);
-      await client.query("DELETE FROM journal_entries WHERE id = ANY($1::text[])", [artifacts.entryIds]);
+      await client.query("DELETE FROM journal_lines WHERE entry_id = ANY($1::text[])", [
+        artifacts.entryIds
+      ]);
+      await client.query("DELETE FROM journal_entries WHERE id = ANY($1::text[])", [
+        artifacts.entryIds
+      ]);
     }
-    if (artifacts.bankBatchId) await client.query("DELETE FROM bank_import_batches WHERE id = $1", [artifacts.bankBatchId]);
+    if (artifacts.bankBatchId)
+      await client.query("DELETE FROM bank_import_batches WHERE id = $1", [artifacts.bankBatchId]);
     if (artifacts.jobId) await client.query("DELETE FROM jobs WHERE id = $1", [artifacts.jobId]);
-    if (artifacts.fileId) await client.query("DELETE FROM stored_files WHERE id = $1", [artifacts.fileId]);
+    if (artifacts.fileId)
+      await client.query("DELETE FROM stored_files WHERE id = $1", [artifacts.fileId]);
     if (artifacts.userId) {
       await client.query("DELETE FROM auth_sessions WHERE user_id = $1", [artifacts.userId]);
       await client.query("DELETE FROM auth_tokens WHERE user_id = $1", [artifacts.userId]);
@@ -288,7 +330,10 @@ async function cleanupArtifacts() {
       await client.query("DELETE FROM users WHERE id = $1", [artifacts.userId]);
     }
     await client.query("DELETE FROM accounting_periods WHERE id = $1", [periodId]);
-    await client.query("DELETE FROM audit_events WHERE organization_id = 'demo-company' AND created_at >= $1", [testStartedAt]);
+    await client.query(
+      "DELETE FROM audit_events WHERE organization_id = 'demo-company' AND created_at >= $1",
+      [testStartedAt]
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

@@ -6,26 +6,33 @@ export function buildSubscriptionEntries(input, batchId = crypto.randomUUID()) {
   const description = String(input.description || name).trim();
   const startDate = String(input.startDate || "");
   const endDate = String(input.endDate || "");
-  const dayOfMonth = Math.min(28, Math.max(1, Number(input.dayOfMonth || startDate.slice(-2) || 1)));
+  const dayOfMonth = Math.min(
+    28,
+    Math.max(1, Number(input.dayOfMonth || startDate.slice(-2) || 1))
+  );
   const lines = Array.isArray(input.lines) ? input.lines : [];
 
   if (name.length < 2) errors.push("Le nom de l'abonnement est obligatoire.");
-  if (!startDate || Number.isNaN(Date.parse(startDate))) errors.push("La date de debut est obligatoire.");
+  if (!startDate || Number.isNaN(Date.parse(startDate)))
+    errors.push("La date de debut est obligatoire.");
   if (!endDate || Number.isNaN(Date.parse(endDate))) errors.push("La date de fin est obligatoire.");
-  if (startDate && endDate && startDate > endDate) errors.push("La date de fin doit etre posterieure a la date de debut.");
+  if (startDate && endDate && startDate > endDate)
+    errors.push("La date de fin doit etre posterieure a la date de debut.");
   if (lines.length < 2) errors.push("L'abonnement doit contenir au moins deux lignes.");
 
   if (errors.length > 0) return { ok: false, errors, entries: [] };
 
   const dates = monthlyDates(startDate, endDate, dayOfMonth);
-  const entries = dates.map((date, index) => normalizeJournalEntry({
-    date,
-    reference: `ABN-${date.slice(0, 7).replace("-", "")}-${String(index + 1).padStart(3, "0")}`,
-    description,
-    source: "subscription",
-    batchId,
-    lines
-  }));
+  const entries = dates.map((date, index) =>
+    normalizeJournalEntry({
+      date,
+      reference: `ABN-${date.slice(0, 7).replace("-", "")}-${String(index + 1).padStart(3, "0")}`,
+      description,
+      source: "subscription",
+      batchId,
+      lines
+    })
+  );
 
   const validationErrors = entries.flatMap((entry, index) => {
     const validation = validateJournalEntry(entry);

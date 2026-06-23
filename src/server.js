@@ -95,7 +95,9 @@ const server = createServer(async (request, response) => {
     await serveStatic(response, url.pathname);
   } catch (error) {
     console.error(error);
-    sendJson(response, error.status ?? 500, { error: error.status ? error.message : "Erreur serveur interne." });
+    sendJson(response, error.status ?? 500, {
+      error: error.status ? error.message : "Erreur serveur interne."
+    });
   }
 });
 
@@ -129,8 +131,8 @@ function assertSafeStartupConfig() {
   if (!isProduction) return;
 
   if (
-    ["admin12345", "change-me-before-production"].includes(config.defaultAdminPassword)
-    || config.defaultAdminPassword.length < 12
+    ["admin12345", "change-me-before-production"].includes(config.defaultAdminPassword) ||
+    config.defaultAdminPassword.length < 12
   ) {
     throw new Error(
       "Configuration non securisee: OHADA_DEFAULT_ADMIN_PASSWORD doit etre defini avec un mot de passe fort en production."
@@ -148,7 +150,9 @@ function consumeLoginRateLimit(identifier) {
   const now = Date.now();
   const windowMs = Math.max(1000, Number(config.authRateLimitWindowMs) || 900000);
   const maxAttempts = Math.max(1, Number(config.authRateLimitMaxAttempts) || 10);
-  const attempts = (loginAttempts.get(identifier) || []).filter((timestamp) => now - timestamp < windowMs);
+  const attempts = (loginAttempts.get(identifier) || []).filter(
+    (timestamp) => now - timestamp < windowMs
+  );
 
   if (attempts.length >= maxAttempts) {
     const retryAfterMs = Math.max(0, windowMs - (now - attempts[0]));
@@ -175,7 +179,9 @@ function pruneOldLoginAttempts(now, windowMs) {
 }
 
 function clientIp(request) {
-  const forwarded = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const forwarded = String(request.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
   if (forwarded) return forwarded;
   return request.socket?.remoteAddress || "unknown";
 }
@@ -200,12 +206,17 @@ function applyCorsHeaders(request, response) {
   response.setHeader("access-control-allow-origin", allowedOrigin);
   response.setHeader("vary", "Origin");
   response.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  response.setHeader("access-control-allow-headers", "content-type,authorization,x-organization-id");
+  response.setHeader(
+    "access-control-allow-headers",
+    "content-type,authorization,x-organization-id"
+  );
   return true;
 }
 
 function loginIdentifier(request, email) {
-  return `${clientIp(request)}|${String(email || "").trim().toLowerCase()}`;
+  return `${clientIp(request)}|${String(email || "")
+    .trim()
+    .toLowerCase()}`;
 }
 
 async function handleAuthApi(request, response, url) {
@@ -223,7 +234,7 @@ async function handleAuthApi(request, response, url) {
     }
     const result = await loginUser(payload);
     if (result.ok) clearLoginRateLimit(identifier);
-    sendJson(response, result.ok ? 200 : result.status ?? 401, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 401), result);
     return true;
   }
 
@@ -235,7 +246,7 @@ async function handleAuthApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/auth/invitations/accept") {
     const result = await acceptInvitation(await readJson(request));
-    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 422), result);
     return true;
   }
 
@@ -247,7 +258,7 @@ async function handleAuthApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/auth/password-reset/confirm") {
     const result = await resetPassword(await readJson(request));
-    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 422), result);
     return true;
   }
 
@@ -271,7 +282,7 @@ async function handleOrganizationUserApi(request, response, url, organizationId)
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return true;
     const result = await addOrganization(await readJson(request));
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -286,7 +297,7 @@ async function handleOrganizationUserApi(request, response, url, organizationId)
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return true;
     const result = await addUser({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -294,7 +305,7 @@ async function handleOrganizationUserApi(request, response, url, organizationId)
     const auth = await requireRole(request, response, ["owner", "admin"]);
     if (!auth) return true;
     const result = await inviteUser({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -303,7 +314,7 @@ async function handleOrganizationUserApi(request, response, url, organizationId)
     if (!auth) return true;
     const userId = decodeURIComponent(url.pathname.split("/").at(-1));
     const result = await updateUser(userId, await readJson(request), auth);
-    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 422), result);
     return true;
   }
 
@@ -320,15 +331,19 @@ async function handleJobsFilesApi(request, response, url, organizationId) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
     const result = await enqueueJob({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
   if (request.method === "POST" && url.pathname === "/api/reports/export") {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
-    const result = await enqueueJob({ type: "financial-statements-export", organizationId, payload: await readJson(request) });
-    sendJson(response, result.ok ? 202 : result.status ?? 422, result);
+    const result = await enqueueJob({
+      type: "financial-statements-export",
+      organizationId,
+      payload: await readJson(request)
+    });
+    sendJson(response, result.ok ? 202 : (result.status ?? 422), result);
     return true;
   }
 
@@ -337,7 +352,11 @@ async function handleJobsFilesApi(request, response, url, organizationId) {
     return true;
   }
 
-  if (request.method === "GET" && url.pathname.startsWith("/api/files/") && url.pathname.endsWith("/content")) {
+  if (
+    request.method === "GET" &&
+    url.pathname.startsWith("/api/files/") &&
+    url.pathname.endsWith("/content")
+  ) {
     const fileId = decodeURIComponent(url.pathname.split("/").at(-2));
     const stored = await readStoredFileContent(fileId, organizationId);
     if (!stored) {
@@ -356,7 +375,7 @@ async function handleJobsFilesApi(request, response, url, organizationId) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
     const result = await saveTextFile({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -374,7 +393,7 @@ async function handleMasterDataApi(request, response, url, organizationId, db) {
     if (!auth) return true;
     const payload = await readJson(request);
     const result = await updateCompany({ ...payload, organizationId });
-    sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 422), result);
     return true;
   }
 
@@ -387,7 +406,7 @@ async function handleMasterDataApi(request, response, url, organizationId, db) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
     const result = await addCustomAccount({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -405,7 +424,7 @@ async function handleMasterDataApi(request, response, url, organizationId, db) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
     const result = await addJournal({ ...(await readJson(request)), organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -419,7 +438,7 @@ async function handleMasterDataApi(request, response, url, organizationId, db) {
     if (!auth) return true;
     const payload = await readJson(request);
     const result = await addAuxiliaryAccount({ ...payload, organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -437,7 +456,7 @@ async function handlePeriodsEntriesApi(request, response, url, organizationId, d
     if (!auth) return true;
     const payload = await readJson(request);
     const result = await addAccountingPeriod({ ...payload, organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -448,7 +467,11 @@ async function handlePeriodsEntriesApi(request, response, url, organizationId, d
     if (["lock", "unlock"].includes(action)) {
       const auth = await requireRole(request, response, ["owner", "admin"]);
       if (!auth) return true;
-      const result = await setAccountingPeriodStatus(periodId, action === "lock" ? "locked" : "open", organizationId);
+      const result = await setAccountingPeriodStatus(
+        periodId,
+        action === "lock" ? "locked" : "open",
+        organizationId
+      );
       sendJson(response, result.ok ? 200 : 404, result);
       return true;
     }
@@ -482,7 +505,7 @@ async function handlePeriodsEntriesApi(request, response, url, organizationId, d
         return true;
       }
       const result = await updateJournalEntry(entryId, payload);
-      sendJson(response, result.ok ? 200 : result.status ?? 422, result);
+      sendJson(response, result.ok ? 200 : (result.status ?? 422), result);
       return true;
     }
 
@@ -494,7 +517,7 @@ async function handlePeriodsEntriesApi(request, response, url, organizationId, d
         return true;
       }
       const result = await deleteJournalEntry(entryId);
-      sendJson(response, result.ok ? 200 : result.status ?? 404, result);
+      sendJson(response, result.ok ? 200 : (result.status ?? 404), result);
       return true;
     }
   }
@@ -541,23 +564,30 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
       return true;
     }
 
-    const batch = await addSubscriptionBatch({
-      id: batchId,
-      organizationId,
-      name: String(payload.name || "").trim(),
-      description: String(payload.description || payload.name || "").trim(),
-      startDate: payload.startDate,
-      endDate: payload.endDate,
-      frequency: "monthly",
-      entryCount: built.entries.length,
-      createdAt: new Date().toISOString()
-    }, built.entries.map((entry) => ({ ...entry, organizationId })));
+    const batch = await addSubscriptionBatch(
+      {
+        id: batchId,
+        organizationId,
+        name: String(payload.name || "").trim(),
+        description: String(payload.description || payload.name || "").trim(),
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        frequency: "monthly",
+        entryCount: built.entries.length,
+        createdAt: new Date().toISOString()
+      },
+      built.entries.map((entry) => ({ ...entry, organizationId }))
+    );
     sendJson(response, 201, { ok: true, batch, entries: built.entries });
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/lettering") {
-    sendJson(response, 200, await readLetteringState(url.searchParams.get("accountCode") ?? "", organizationId));
+    sendJson(
+      response,
+      200,
+      await readLetteringState(url.searchParams.get("accountCode") ?? "", organizationId)
+    );
     return true;
   }
 
@@ -571,7 +601,7 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
     if (!auth) return true;
     const payload = await readJson(request);
     const result = await addManualLettering({ ...payload, organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -580,7 +610,7 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
     if (!auth) return true;
     const payload = await readJson(request);
     const result = await addAutomaticLettering({ ...payload, organizationId });
-    sendJson(response, result.ok ? 201 : result.status ?? 422, result);
+    sendJson(response, result.ok ? 201 : (result.status ?? 422), result);
     return true;
   }
 
@@ -621,9 +651,13 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
       return true;
     }
 
-    const editedTransactions = Array.isArray(payload.transactions) ? payload.transactions : preview.transactions;
+    const editedTransactions = Array.isArray(payload.transactions)
+      ? payload.transactions
+      : preview.transactions;
     const corrections = buildLearningCorrections(preview.transactions, editedTransactions);
-    const importableTransactions = editedTransactions.filter((transaction) => !transaction.duplicate);
+    const importableTransactions = editedTransactions.filter(
+      (transaction) => !transaction.duplicate
+    );
     const batchId = crypto.randomUUID();
     const normalizedEntries = [];
     for (const draft of transactionsToJournalEntries(importableTransactions)) {
@@ -636,7 +670,9 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
       normalizedEntries.push(normalizeJournalEntry({ ...draft, batchId, organizationId }));
     }
     const imported = await addJournalEntries(normalizedEntries);
-    const learned = await addClassificationCorrections(corrections.map((correction) => ({ ...correction, organizationId })));
+    const learned = await addClassificationCorrections(
+      corrections.map((correction) => ({ ...correction, organizationId }))
+    );
     const batch = await addBankImportBatch({
       id: batchId,
       organizationId,
@@ -660,12 +696,16 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
     return true;
   }
 
-  if (request.method === "POST" && url.pathname.startsWith("/api/bank-imports/batches/") && url.pathname.endsWith("/void")) {
+  if (
+    request.method === "POST" &&
+    url.pathname.startsWith("/api/bank-imports/batches/") &&
+    url.pathname.endsWith("/void")
+  ) {
     const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
     if (!auth) return true;
     const batchId = url.pathname.split("/").at(-2);
     const result = await voidBankImportBatch(batchId, organizationId);
-    sendJson(response, result.ok ? 200 : result.status ?? 404, result);
+    sendJson(response, result.ok ? 200 : (result.status ?? 404), result);
     return true;
   }
 
@@ -674,17 +714,33 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
 
 async function handleReportsApi(request, response, url, db) {
   if (request.method === "GET" && url.pathname === "/api/reports/trial-balance") {
-    sendJson(response, 200, buildTrialBalance(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    sendJson(
+      response,
+      200,
+      buildTrialBalance(entriesForReportPeriod(db.journalEntries, url), db.accounts)
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/general-ledger") {
-    sendJson(response, 200, buildGeneralLedger(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, db.accounts));
+    sendJson(
+      response,
+      200,
+      buildGeneralLedger(
+        entriesForReportPeriod(db.journalEntries, url),
+        db.auxiliaryAccounts,
+        db.accounts
+      )
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/auxiliary-balance") {
-    sendJson(response, 200, buildAuxiliaryBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts));
+    sendJson(
+      response,
+      200,
+      buildAuxiliaryBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts)
+    );
     return true;
   }
 
@@ -700,29 +756,65 @@ async function handleReportsApi(request, response, url, db) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/income-statement") {
-    sendJson(response, 200, buildSyscohadaIncomeStatement(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    sendJson(
+      response,
+      200,
+      buildSyscohadaIncomeStatement(entriesForReportPeriod(db.journalEntries, url), db.accounts)
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/vat-declaration") {
-    sendJson(response, 200, buildVatDeclaration(entriesForReportPeriod(db.journalEntries, url), db.accounts));
+    sendJson(
+      response,
+      200,
+      buildVatDeclaration(entriesForReportPeriod(db.journalEntries, url), db.accounts)
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/closing-controls") {
-    sendJson(response, 200, buildClosingControls(entriesForReportPeriod(db.journalEntries, url), db.accountingPeriods, db.accounts));
+    sendJson(
+      response,
+      200,
+      buildClosingControls(
+        entriesForReportPeriod(db.journalEntries, url),
+        db.accountingPeriods,
+        db.accounts
+      )
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/aged-balance/clients") {
     const asOfDate = url.searchParams.get("to") || "";
-    sendJson(response, 200, buildAgedBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, asOfDate, "41", "AR"));
+    sendJson(
+      response,
+      200,
+      buildAgedBalance(
+        entriesForReportPeriod(db.journalEntries, url),
+        db.auxiliaryAccounts,
+        asOfDate,
+        "41",
+        "AR"
+      )
+    );
     return true;
   }
 
   if (request.method === "GET" && url.pathname === "/api/reports/aged-balance/suppliers") {
     const asOfDate = url.searchParams.get("to") || "";
-    sendJson(response, 200, buildAgedBalance(entriesForReportPeriod(db.journalEntries, url), db.auxiliaryAccounts, asOfDate, "40", "AP"));
+    sendJson(
+      response,
+      200,
+      buildAgedBalance(
+        entriesForReportPeriod(db.journalEntries, url),
+        db.auxiliaryAccounts,
+        asOfDate,
+        "40",
+        "AP"
+      )
+    );
     return true;
   }
 
@@ -767,7 +859,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/health/database") {
-    const database = await databaseHealth({ checkPostgres: url.searchParams.get("checkPostgres") === "1" });
+    const database = await databaseHealth({
+      checkPostgres: url.searchParams.get("checkPostgres") === "1"
+    });
     sendJson(response, database.ok ? 200 : 503, { ok: database.ok, database });
     return;
   }
@@ -794,7 +888,10 @@ async function handleApi(request, response, url) {
 }
 
 async function serveStatic(response, pathname) {
-  const safePath = normalize(pathname === "/" ? "/index.html" : pathname).replace(/^(\.\.[/\\])+/, "");
+  const safePath = normalize(pathname === "/" ? "/index.html" : pathname).replace(
+    /^(\.\.[/\\])+/,
+    ""
+  );
   const filePath = join(publicDir, safePath);
   const file = await readFile(filePath);
 
@@ -883,7 +980,7 @@ async function readJson(request) {
 function bearerToken(request) {
   const authorization = request.headers.authorization || "";
   const [scheme, token] = authorization.split(/\s+/);
-  return scheme?.toLowerCase() === "bearer" ? token ?? "" : "";
+  return scheme?.toLowerCase() === "bearer" ? (token ?? "") : "";
 }
 
 async function requireAuth(request, response) {
@@ -908,10 +1005,12 @@ async function requireRole(request, response, roles) {
 
 function contentType(filePath) {
   const extension = extname(filePath);
-  return {
-    ".html": "text/html; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".json": "application/json; charset=utf-8"
-  }[extension] ?? "application/octet-stream";
+  return (
+    {
+      ".html": "text/html; charset=utf-8",
+      ".css": "text/css; charset=utf-8",
+      ".js": "text/javascript; charset=utf-8",
+      ".json": "application/json; charset=utf-8"
+    }[extension] ?? "application/octet-stream"
+  );
 }

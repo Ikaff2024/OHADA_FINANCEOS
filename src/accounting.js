@@ -26,7 +26,9 @@ export function validateJournalEntry(input, accountCatalog = accounts) {
     if (!account) {
       errors.push(`Ligne ${index + 1}: compte OHADA inconnu (${line.accountCode}).`);
     } else if (String(account.code).length !== 4) {
-      errors.push(`Ligne ${index + 1}: le compte doit etre un compte imputable a 4 chiffres (${line.accountCode}).`);
+      errors.push(
+        `Ligne ${index + 1}: le compte doit etre un compte imputable a 4 chiffres (${line.accountCode}).`
+      );
     }
 
     const debit = Number(line.debit || 0);
@@ -78,32 +80,39 @@ export function normalizeJournalEntry(input) {
 }
 
 export function buildGeneralLedger(entries, auxiliaryAccounts = [], accountCatalog = accounts) {
-  const auxiliaryByCode = new Map(auxiliaryAccounts.map((auxiliary) => [auxiliary.code, auxiliary]));
+  const auxiliaryByCode = new Map(
+    auxiliaryAccounts.map((auxiliary) => [auxiliary.code, auxiliary])
+  );
   const accountByCode = mapAccounts(accountCatalog);
   return entries
-    .flatMap((entry) => entry.lines.map((line, index) => {
-      const account = accountByCode.get(String(line.accountCode));
-      const auxiliary = line.auxiliaryCode ? auxiliaryByCode.get(line.auxiliaryCode) : null;
-      return {
-        entryId: entry.id,
-        lineIndex: index + 1,
-        date: entry.date,
-        reference: entry.reference,
-        description: entry.description,
-        source: entry.source,
-        accountCode: line.accountCode,
-        accountLabel: account?.label ?? line.label,
-        auxiliaryCode: line.auxiliaryCode,
-        auxiliaryLabel: auxiliary?.label,
-        label: line.label,
-        debit: roundMoney(Number(line.debit || 0)),
-        credit: roundMoney(Number(line.credit || 0))
-      };
-    }))
-    .sort((a, b) =>
-      a.date.localeCompare(b.date) ||
-      String(a.reference || "").localeCompare(String(b.reference || ""), "fr", { numeric: true }) ||
-      a.lineIndex - b.lineIndex
+    .flatMap((entry) =>
+      entry.lines.map((line, index) => {
+        const account = accountByCode.get(String(line.accountCode));
+        const auxiliary = line.auxiliaryCode ? auxiliaryByCode.get(line.auxiliaryCode) : null;
+        return {
+          entryId: entry.id,
+          lineIndex: index + 1,
+          date: entry.date,
+          reference: entry.reference,
+          description: entry.description,
+          source: entry.source,
+          accountCode: line.accountCode,
+          accountLabel: account?.label ?? line.label,
+          auxiliaryCode: line.auxiliaryCode,
+          auxiliaryLabel: auxiliary?.label,
+          label: line.label,
+          debit: roundMoney(Number(line.debit || 0)),
+          credit: roundMoney(Number(line.credit || 0))
+        };
+      })
+    )
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        String(a.reference || "").localeCompare(String(b.reference || ""), "fr", {
+          numeric: true
+        }) ||
+        a.lineIndex - b.lineIndex
     );
 }
 
@@ -183,18 +192,20 @@ export function buildBalanceSheet(entries, accountCatalog = accounts) {
 }
 
 export function buildAuxiliaryBalance(entries, auxiliaryAccounts = []) {
-  const rowsByCode = new Map(auxiliaryAccounts.map((auxiliary) => [
-    auxiliary.code,
-    {
-      code: auxiliary.code,
-      label: auxiliary.label,
-      accountCode: auxiliary.accountCode,
-      accountLabel: auxiliary.accountLabel,
-      debit: 0,
-      credit: 0,
-      balance: 0
-    }
-  ]));
+  const rowsByCode = new Map(
+    auxiliaryAccounts.map((auxiliary) => [
+      auxiliary.code,
+      {
+        code: auxiliary.code,
+        label: auxiliary.label,
+        accountCode: auxiliary.accountCode,
+        accountLabel: auxiliary.accountLabel,
+        debit: 0,
+        credit: 0,
+        balance: 0
+      }
+    ])
+  );
 
   for (const entry of entries) {
     for (const line of entry.lines) {
@@ -224,8 +235,17 @@ export function buildAuxiliaryBalance(entries, auxiliaryAccounts = []) {
       credit: roundMoney(row.credit),
       balance: roundMoney(row.debit - row.credit)
     }))
-    .filter((row) => row.debit !== 0 || row.credit !== 0 || auxiliaryAccounts.some((auxiliary) => auxiliary.code === row.code))
-    .sort((a, b) => a.accountCode.localeCompare(b.accountCode, "fr", { numeric: true }) || a.code.localeCompare(b.code, "fr", { numeric: true }));
+    .filter(
+      (row) =>
+        row.debit !== 0 ||
+        row.credit !== 0 ||
+        auxiliaryAccounts.some((auxiliary) => auxiliary.code === row.code)
+    )
+    .sort(
+      (a, b) =>
+        a.accountCode.localeCompare(b.accountCode, "fr", { numeric: true }) ||
+        a.code.localeCompare(b.code, "fr", { numeric: true })
+    );
 }
 
 export function buildClosingControls(entries, periods = [], accountCatalog = accounts) {
@@ -251,41 +271,46 @@ export function buildClosingControls(entries, periods = [], accountCatalog = acc
       id: "trial-balance",
       label: "Balance debit / credit",
       status: totals.debit === totals.credit ? "ok" : "blocker",
-      detail: totals.debit === totals.credit
-        ? `Total equilibre a ${formatMoney(totals.debit)}.`
-        : `Ecart de ${formatMoney(Math.abs(totals.debit - totals.credit))}.`
+      detail:
+        totals.debit === totals.credit
+          ? `Total equilibre a ${formatMoney(totals.debit)}.`
+          : `Ecart de ${formatMoney(Math.abs(totals.debit - totals.credit))}.`
     },
     {
       id: "balance-sheet",
       label: "Controle bilan",
       status: balanceSheet.difference === 0 ? "ok" : "blocker",
-      detail: balanceSheet.difference === 0
-        ? "Actif, passif et capitaux propres sont coherents."
-        : `Ecart bilan de ${formatMoney(Math.abs(balanceSheet.difference))}.`
+      detail:
+        balanceSheet.difference === 0
+          ? "Actif, passif et capitaux propres sont coherents."
+          : `Ecart bilan de ${formatMoney(Math.abs(balanceSheet.difference))}.`
     },
     {
       id: "period-coverage",
       label: "Couverture des periodes",
       status: entriesWithoutPeriod.length === 0 ? "ok" : "warning",
-      detail: entriesWithoutPeriod.length === 0
-        ? "Toutes les ecritures appartiennent a un exercice configure."
-        : `${entriesWithoutPeriod.length} ecriture(s) hors exercice configure.`
+      detail:
+        entriesWithoutPeriod.length === 0
+          ? "Toutes les ecritures appartiennent a un exercice configure."
+          : `${entriesWithoutPeriod.length} ecriture(s) hors exercice configure.`
     },
     {
       id: "unknown-accounts",
       label: "Comptes references",
       status: unknownAccounts.length === 0 ? "ok" : "blocker",
-      detail: unknownAccounts.length === 0
-        ? "Aucun compte non reference dans la balance."
-        : `${unknownAccounts.length} compte(s) a rattacher au plan OHADA.`
+      detail:
+        unknownAccounts.length === 0
+          ? "Aucun compte non reference dans la balance."
+          : `${unknownAccounts.length} compte(s) a rattacher au plan OHADA.`
     },
     {
       id: "period-lock",
       label: "Verrouillage d'exercice",
       status: openPeriods.length === 0 && periods.length > 0 ? "ok" : "warning",
-      detail: periods.length === 0
-        ? "Aucun exercice configure."
-        : `${openPeriods.length} exercice(s) ouvert(s), ${lockedPeriods.length} verrouille(s).`
+      detail:
+        periods.length === 0
+          ? "Aucun exercice configure."
+          : `${openPeriods.length} exercice(s) ouvert(s), ${lockedPeriods.length} verrouille(s).`
     },
     {
       id: "third-parties",
@@ -322,9 +347,7 @@ export function totalsForLines(lines) {
 }
 
 function sumByType(rows, type, amount) {
-  return rows
-    .filter((row) => row.type === type)
-    .reduce((sum, row) => sum + amount(row), 0);
+  return rows.filter((row) => row.type === type).reduce((sum, row) => sum + amount(row), 0);
 }
 
 function createUnknownRow(code) {
@@ -348,9 +371,11 @@ function mapAccounts(accountCatalog) {
 }
 
 function balanceForAccount(rows, accountCode) {
-  return roundMoney(rows
-    .filter((row) => row.code === accountCode || row.code.startsWith(accountCode))
-    .reduce((sum, row) => sum + row.balance, 0));
+  return roundMoney(
+    rows
+      .filter((row) => row.code === accountCode || row.code.startsWith(accountCode))
+      .reduce((sum, row) => sum + row.balance, 0)
+  );
 }
 
 function findPeriodForDate(periods, date) {
@@ -362,12 +387,13 @@ function formatMoney(amount) {
 }
 
 function generateEntryReference(input) {
-  const prefix = {
-    "bank-csv": "BAN",
-    subscription: "ABN",
-    seed: "INIT",
-    manual: "MAN"
-  }[input.source ?? "manual"] ?? "ECR";
+  const prefix =
+    {
+      "bank-csv": "BAN",
+      subscription: "ABN",
+      seed: "INIT",
+      manual: "MAN"
+    }[input.source ?? "manual"] ?? "ECR";
   const datePart = String(input.date || new Date().toISOString().slice(0, 10)).replaceAll("-", "");
   return `${prefix}-${datePart}`;
 }
@@ -378,7 +404,7 @@ function roundMoney(amount) {
 
 export function buildAgedBalance(entries, auxiliaryAccounts = [], asOfDate, accountPrefix, type) {
   const asOf = asOfDate || new Date().toISOString().slice(0, 10);
-  
+
   const linesByAux = new Map();
   const balancesByAux = new Map();
 
@@ -399,37 +425,37 @@ export function buildAgedBalance(entries, auxiliaryAccounts = [], asOfDate, acco
         debit: Number(line.debit || 0),
         credit: Number(line.credit || 0)
       });
-      
+
       const bal = balancesByAux.get(line.auxiliaryCode);
       bal.debit += Number(line.debit || 0);
       bal.credit += Number(line.credit || 0);
     }
   }
 
-  const auxiliaryMap = new Map(auxiliaryAccounts.map(a => [a.code, a]));
+  const auxiliaryMap = new Map(auxiliaryAccounts.map((a) => [a.code, a]));
   const rows = [];
 
   for (const [auxCode, lines] of linesByAux.entries()) {
     const bal = balancesByAux.get(auxCode);
-    const balance = type === 'AR' ? (bal.debit - bal.credit) : (bal.credit - bal.debit);
-    
+    const balance = type === "AR" ? bal.debit - bal.credit : bal.credit - bal.debit;
+
     let remainingBalance = roundMoney(balance);
     const buckets = { current: 0, b30: 0, b60: 0, b90: 0, b90plus: 0 };
-    
+
     if (remainingBalance > 0) {
       lines.sort((a, b) => b.date.localeCompare(a.date));
-      
+
       for (const line of lines) {
         if (remainingBalance <= 0) break;
-        
-        const lineAmount = type === 'AR' ? line.debit : line.credit;
+
+        const lineAmount = type === "AR" ? line.debit : line.credit;
         if (lineAmount <= 0) continue;
-        
+
         const allocated = Math.min(remainingBalance, lineAmount);
         remainingBalance = roundMoney(remainingBalance - allocated);
-        
+
         const ageDays = (new Date(asOf) - new Date(line.date)) / (1000 * 60 * 60 * 24);
-        
+
         if (ageDays <= 0) buckets.current += allocated;
         else if (ageDays <= 30) buckets.b30 += allocated;
         else if (ageDays <= 60) buckets.b60 += allocated;
@@ -438,7 +464,10 @@ export function buildAgedBalance(entries, auxiliaryAccounts = [], asOfDate, acco
       }
     }
 
-    const aux = auxiliaryMap.get(auxCode) || { label: "Auxiliaire inconnu", accountCode: accountPrefix };
+    const aux = auxiliaryMap.get(auxCode) || {
+      label: "Auxiliaire inconnu",
+      accountCode: accountPrefix
+    };
 
     rows.push({
       code: auxCode,
@@ -454,6 +483,9 @@ export function buildAgedBalance(entries, auxiliaryAccounts = [], asOfDate, acco
   }
 
   return rows
-    .filter(row => row.total !== 0)
-    .sort((a, b) => a.accountCode.localeCompare(b.accountCode, "fr") || a.code.localeCompare(b.code, "fr"));
+    .filter((row) => row.total !== 0)
+    .sort(
+      (a, b) =>
+        a.accountCode.localeCompare(b.accountCode, "fr") || a.code.localeCompare(b.code, "fr")
+    );
 }

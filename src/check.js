@@ -19,7 +19,10 @@ import {
   transactionsToJournalEntries
 } from "./bankImport.js";
 import { toPostgresQuery } from "./postgresRuntime.js";
-import { backupRetentionPolicy, prunePostgresBackups } from "../scripts/postgres-backup-retention.js";
+import {
+  backupRetentionPolicy,
+  prunePostgresBackups
+} from "../scripts/postgres-backup-retention.js";
 
 const validEntry = {
   date: "2026-02-01",
@@ -67,20 +70,29 @@ assert.equal(buildTrialBalance(entries).length, 3);
 assert.equal(buildIncomeStatement(entries).netIncome, 75000);
 assert.equal(buildBalanceSheet(entries).difference, 0);
 assert.equal(buildGeneralLedger(entries).length, 4);
-const auxiliaryBalance = buildAuxiliaryBalance([
-  {
-    date: "2026-02-03",
-    reference: "TEST-005",
-    lines: [
-      { accountCode: "4111", auxiliaryCode: "C-TEST", debit: 100000, credit: 0 },
-      { accountCode: "7061", debit: 0, credit: 100000 }
-    ]
-  }
-], [{ code: "C-TEST", label: "Client Test", accountCode: "4111", accountLabel: "Clients" }]);
+const auxiliaryBalance = buildAuxiliaryBalance(
+  [
+    {
+      date: "2026-02-03",
+      reference: "TEST-005",
+      lines: [
+        { accountCode: "4111", auxiliaryCode: "C-TEST", debit: 100000, credit: 0 },
+        { accountCode: "7061", debit: 0, credit: 100000 }
+      ]
+    }
+  ],
+  [{ code: "C-TEST", label: "Client Test", accountCode: "4111", accountLabel: "Clients" }]
+);
 assert.equal(auxiliaryBalance.length, 1);
 assert.equal(auxiliaryBalance[0].balance, 100000);
 const closingControls = buildClosingControls(entries, [
-  { id: "period-2026", name: "Exercice 2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" }
+  {
+    id: "period-2026",
+    name: "Exercice 2026",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    status: "open"
+  }
 ]);
 assert.equal(closingControls.blockerCount, 0);
 assert.equal(closingControls.warningCount, 1);
@@ -101,13 +113,26 @@ assert.equal(corrections.length, 1);
 assert.equal(previewBankCsv(sampleBankCsv(), corrections).transactions[0].accountCode, "7011");
 
 const importedEntries = transactionsToJournalEntries([preview.transactions[0]]);
-const duplicatePreview = previewBankCsv(sampleBankCsv(), [], journalEntryFingerprints(importedEntries));
+const duplicatePreview = previewBankCsv(
+  sampleBankCsv(),
+  [],
+  journalEntryFingerprints(importedEntries)
+);
 assert.equal(duplicatePreview.transactions[0].duplicate, true);
 assert.equal(duplicatePreview.transactions[1].duplicate, false);
 
-assert.equal(toPostgresQuery("SELECT * FROM users WHERE email = ? AND status = ?").text, "SELECT * FROM users WHERE email = $1 AND status = $2");
-assert.equal(toPostgresQuery("SELECT '?' AS literal, ? AS value -- ? in comment").text, "SELECT '?' AS literal, $1 AS value -- ? in comment");
-assert.equal(toPostgresQuery("SELECT $$?$$ AS body, ? AS value").text, "SELECT $$?$$ AS body, $1 AS value");
+assert.equal(
+  toPostgresQuery("SELECT * FROM users WHERE email = ? AND status = ?").text,
+  "SELECT * FROM users WHERE email = $1 AND status = $2"
+);
+assert.equal(
+  toPostgresQuery("SELECT '?' AS literal, ? AS value -- ? in comment").text,
+  "SELECT '?' AS literal, $1 AS value -- ? in comment"
+);
+assert.equal(
+  toPostgresQuery("SELECT $$?$$ AS body, ? AS value").text,
+  "SELECT $$?$$ AS body, $1 AS value"
+);
 
 assert.deepEqual(backupRetentionPolicy({}), { retentionDays: 30, minCopies: 7 });
 assert.deepEqual(
@@ -130,7 +155,11 @@ try {
     await writeFile(path, name);
     await utimes(path, modifiedAt, modifiedAt);
   }
-  const retention = await prunePostgresBackups(backupTestDirectory, { retentionDays: 30, minCopies: 2, now });
+  const retention = await prunePostgresBackups(backupTestDirectory, {
+    retentionDays: 30,
+    minCopies: 2,
+    now
+  });
   assert.deepEqual(retention.deleted, ["postgres-old.dump"]);
   assert.equal(retention.retained, 2);
 } finally {

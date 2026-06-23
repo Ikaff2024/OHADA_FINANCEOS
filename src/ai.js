@@ -54,7 +54,9 @@ async function uploadGuide() {
 
 export async function askAssistant(userMessage, chatHistory = []) {
   if (!ai) {
-    throw new Error("La cle API Gemini n'est pas configuree. Ajoutez GEMINI_API_KEY dans votre fichier .env.");
+    throw new Error(
+      "La cle API Gemini n'est pas configuree. Ajoutez GEMINI_API_KEY dans votre fichier .env."
+    );
   }
 
   if (!guideFileUri) {

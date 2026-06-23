@@ -8,7 +8,8 @@ export function postgresConnection() {
   if (!config.databaseUrl) {
     const user = String(process.env.POSTGRES_USER || "").trim();
     const database = String(process.env.POSTGRES_DB || "").trim();
-    if (!user || !database) throw new Error("DATABASE_URL ou POSTGRES_USER/POSTGRES_DB sont obligatoires.");
+    if (!user || !database)
+      throw new Error("DATABASE_URL ou POSTGRES_USER/POSTGRES_DB sont obligatoires.");
     return {
       host: String(process.env.POSTGRES_HOST || "localhost").trim(),
       port: String(process.env.POSTGRES_PORT || "5432").trim(),
@@ -31,8 +32,18 @@ export async function runPostgresTool(tool, args, { inputPath, outputPath } = {}
   const connection = postgresConnection();
   const container = String(process.env.PG_DOCKER_CONTAINER || "").trim();
   const connectionArgs = container
-    ? ["--host=127.0.0.1", "--port=5432", `--username=${connection.user}`, `--dbname=${connection.database}`]
-    : [`--host=${connection.host}`, `--port=${connection.port}`, `--username=${connection.user}`, `--dbname=${connection.database}`];
+    ? [
+        "--host=127.0.0.1",
+        "--port=5432",
+        `--username=${connection.user}`,
+        `--dbname=${connection.database}`
+      ]
+    : [
+        `--host=${connection.host}`,
+        `--port=${connection.port}`,
+        `--username=${connection.user}`,
+        `--dbname=${connection.database}`
+      ];
 
   let command;
   let commandArgs;
@@ -62,7 +73,9 @@ export async function runPostgresTool(tool, args, { inputPath, outputPath } = {}
     stderr += chunk.toString();
   });
 
-  const input = inputPath ? pipeline(createReadStream(inputPath), child.stdin) : Promise.resolve(child.stdin.end());
+  const input = inputPath
+    ? pipeline(createReadStream(inputPath), child.stdin)
+    : Promise.resolve(child.stdin.end());
   const output = outputPath
     ? pipeline(child.stdout, createWriteStream(outputPath))
     : pipeline(child.stdout, process.stdout, { end: false });

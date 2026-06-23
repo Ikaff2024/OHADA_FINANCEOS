@@ -66,7 +66,11 @@ export function previewBankCsv(csvText, learnedRules = [], existingFingerprints 
   const seenInFile = new Set();
 
   if (rows.length === 0) {
-    return { ok: false, errors: ["Le fichier CSV ne contient aucune ligne exploitable."], transactions: [] };
+    return {
+      ok: false,
+      errors: ["Le fichier CSV ne contient aucune ligne exploitable."],
+      transactions: []
+    };
   }
 
   const headers = rows[0].map(normalizeHeader);
@@ -80,10 +84,13 @@ export function previewBankCsv(csvText, learnedRules = [], existingFingerprints 
     return { ok: false, errors, transactions: [] };
   }
 
-  const transactions = rows.slice(1)
+  const transactions = rows
+    .slice(1)
     .filter((row) => row.some((cell) => String(cell).trim() !== ""))
     .map((row, index) => {
-      const record = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex] ?? ""]));
+      const record = Object.fromEntries(
+        headers.map((header, headerIndex) => [header, row[headerIndex] ?? ""])
+      );
       const amount = parseAmount(record.amount);
       const direction = amount >= 0 ? "credit" : "debit";
       const suggestion = classifyTransaction(record.description, direction, learnedRules);
@@ -112,7 +119,8 @@ export function previewBankCsv(csvText, learnedRules = [], existingFingerprints 
 
   for (const transaction of transactions) {
     if (!transaction.date) errors.push(`Ligne ${transaction.rowNumber}: date invalide.`);
-    if (!transaction.description) errors.push(`Ligne ${transaction.rowNumber}: description manquante.`);
+    if (!transaction.description)
+      errors.push(`Ligne ${transaction.rowNumber}: description manquante.`);
     if (!Number.isFinite(transaction.amount) || transaction.amount === 0) {
       errors.push(`Ligne ${transaction.rowNumber}: montant invalide ou nul.`);
     }
@@ -153,7 +161,9 @@ export function transactionsToJournalEntries(transactions) {
 }
 
 export function buildLearningCorrections(originalTransactions, editedTransactions) {
-  const editedById = new Map(editedTransactions.map((transaction) => [transaction.id, transaction]));
+  const editedById = new Map(
+    editedTransactions.map((transaction) => [transaction.id, transaction])
+  );
 
   return originalTransactions
     .map((original) => {
@@ -165,7 +175,8 @@ export function buildLearningCorrections(originalTransactions, editedTransaction
         description: original.description,
         direction: original.direction,
         accountCode: edited.accountCode,
-        counterpartyAccountCode: edited.counterpartyAccountCode || original.counterpartyAccountCode || "5211",
+        counterpartyAccountCode:
+          edited.counterpartyAccountCode || original.counterpartyAccountCode || "5211",
         reason: "Correction utilisateur",
         confidence: 0.97,
         learnedAt: new Date().toISOString()
@@ -185,16 +196,13 @@ export function sampleBankCsv() {
 }
 
 export function journalEntryFingerprints(entries) {
-  return entries
-    .map((entry) => entry.bankFingerprint)
-    .filter(Boolean);
+  return entries.map((entry) => entry.bankFingerprint).filter(Boolean);
 }
 
 function classifyTransaction(description, direction, learnedRules) {
   const normalized = normalizeText(description);
-  const learned = learnedRules.find((candidate) =>
-    candidate.direction === direction &&
-    normalized.includes(candidate.matchText)
+  const learned = learnedRules.find(
+    (candidate) => candidate.direction === direction && normalized.includes(candidate.matchText)
   );
 
   if (learned) {
@@ -206,9 +214,10 @@ function classifyTransaction(description, direction, learnedRules) {
     };
   }
 
-  const rule = rules.find((candidate) =>
-    candidate.direction === direction &&
-    candidate.keywords.some((keyword) => normalized.includes(normalizeText(keyword)))
+  const rule = rules.find(
+    (candidate) =>
+      candidate.direction === direction &&
+      candidate.keywords.some((keyword) => normalized.includes(normalizeText(keyword)))
   );
 
   if (rule) {

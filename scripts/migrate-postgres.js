@@ -22,10 +22,9 @@ try {
     await client.query("BEGIN");
     try {
       await client.query(sql);
-      await client.query(
-        "INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())",
-        [file]
-      );
+      await client.query("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, NOW())", [
+        file
+      ]);
       await client.query("COMMIT");
       appliedCount += 1;
       console.log(`Migration appliquee: ${file}`);

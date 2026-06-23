@@ -137,7 +137,9 @@ try {
   assert.equal(me.status, 200);
   assert.equal((await me.json()).user.email, "admin@demo.ohada");
 
-  const organizations = await fetch(`http://localhost:${port}/api/organizations`, { headers: authHeaders });
+  const organizations = await fetch(`http://localhost:${port}/api/organizations`, {
+    headers: authHeaders
+  });
   assert.equal(organizations.status, 200);
   assert.equal((await organizations.json()).length >= 1, true);
 
@@ -161,7 +163,10 @@ try {
   assert.equal(createOrganizationBody.owner.role, "owner");
 
   const organizationsAfterCreate = await fetchJson(`http://localhost:${port}/api/organizations`);
-  assert.equal(organizationsAfterCreate.some((organization) => organization.id === "client-nouvelle-sarl"), true);
+  assert.equal(
+    organizationsAfterCreate.some((organization) => organization.id === "client-nouvelle-sarl"),
+    true
+  );
 
   const ownerLogin = await fetch(`http://localhost:${port}/api/auth/login`, {
     method: "POST",
@@ -176,7 +181,9 @@ try {
     authorization: `Bearer ${ownerLoginBody.token}`
   };
 
-  const ownerCompany = await fetch(`http://localhost:${port}/api/company`, { headers: ownerHeaders });
+  const ownerCompany = await fetch(`http://localhost:${port}/api/company`, {
+    headers: ownerHeaders
+  });
   assert.equal(ownerCompany.status, 200);
   assert.equal((await ownerCompany.json()).name, "Client Nouvelle SARL");
 
@@ -186,11 +193,15 @@ try {
   assert.equal(ownerUsersBody.length, 1);
   assert.equal(ownerUsersBody[0].email, "owner.client@ohada.local");
 
-  const ownerEntries = await fetch(`http://localhost:${port}/api/journal-entries`, { headers: ownerHeaders });
+  const ownerEntries = await fetch(`http://localhost:${port}/api/journal-entries`, {
+    headers: ownerHeaders
+  });
   assert.equal(ownerEntries.status, 200);
   assert.equal((await ownerEntries.json()).length, 0);
 
-  const ownerPeriods = await fetch(`http://localhost:${port}/api/accounting-periods`, { headers: ownerHeaders });
+  const ownerPeriods = await fetch(`http://localhost:${port}/api/accounting-periods`, {
+    headers: ownerHeaders
+  });
   assert.equal(ownerPeriods.status, 200);
   const ownerPeriodsBody = await ownerPeriods.json();
   assert.equal(ownerPeriodsBody.length, 1);
@@ -220,7 +231,12 @@ try {
 
   const users = await fetch(`http://localhost:${port}/api/users`, { headers: authHeaders });
   assert.equal(users.status, 200);
-  assert.equal((await users.json()).some((user) => user.email === "comptable.demo@ohada.local" && user.name === "Comptable Demo Senior"), true);
+  assert.equal(
+    (await users.json()).some(
+      (user) => user.email === "comptable.demo@ohada.local" && user.name === "Comptable Demo Senior"
+    ),
+    true
+  );
 
   const inviteUser = await fetch(`http://localhost:${port}/api/users/invitations`, {
     method: "POST",
@@ -284,7 +300,10 @@ try {
 
   const journals = await fetch(`http://localhost:${port}/api/journals`, { headers: authHeaders });
   assert.equal(journals.status, 200);
-  assert.equal((await journals.json()).some((journal) => journal.code === "CA"), true);
+  assert.equal(
+    (await journals.json()).some((journal) => journal.code === "CA"),
+    true
+  );
 
   const createAccount = await fetch(`http://localhost:${port}/api/accounts`, {
     method: "POST",
@@ -296,7 +315,12 @@ try {
 
   const accounts = await fetch(`http://localhost:${port}/api/accounts`, { headers: authHeaders });
   assert.equal(accounts.status, 200);
-  assert.equal((await accounts.json()).some((account) => account.code === "7088" && account.source === "custom"), true);
+  assert.equal(
+    (await accounts.json()).some(
+      (account) => account.code === "7088" && account.source === "custom"
+    ),
+    true
+  );
 
   const customAccountEntry = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
@@ -315,8 +339,18 @@ try {
   assert.equal(customAccountEntry.status, 201);
   const customAccountEntryBody = await customAccountEntry.json();
 
-  const ledgerWithCustomAccount = await fetchJson(`http://localhost:${port}/api/reports/general-ledger`);
-  assert.equal(ledgerWithCustomAccount.some((row) => row.reference === "CA-001" && row.accountCode === "7088" && row.accountLabel === "Produits digitaux test"), true);
+  const ledgerWithCustomAccount = await fetchJson(
+    `http://localhost:${port}/api/reports/general-ledger`
+  );
+  assert.equal(
+    ledgerWithCustomAccount.some(
+      (row) =>
+        row.reference === "CA-001" &&
+        row.accountCode === "7088" &&
+        row.accountLabel === "Produits digitaux test"
+    ),
+    true
+  );
 
   const createJob = await fetch(`http://localhost:${port}/api/jobs`, {
     method: "POST",
@@ -328,7 +362,10 @@ try {
 
   const jobs = await fetch(`http://localhost:${port}/api/jobs`, { headers: authHeaders });
   assert.equal(jobs.status, 200);
-  assert.equal((await jobs.json()).some((job) => job.type === "bank-import-preview"), true);
+  assert.equal(
+    (await jobs.json()).some((job) => job.type === "bank-import-preview"),
+    true
+  );
 
   const exportJob = await fetch(`http://localhost:${port}/api/reports/export`, {
     method: "POST",
@@ -341,9 +378,12 @@ try {
   assert.equal(finishedExportJob.status, "done");
   assert.equal(typeof finishedExportJob.result.fileId, "string");
 
-  const exportedFile = await fetch(`http://localhost:${port}/api/files/${finishedExportJob.result.fileId}/content`, {
-    headers: authHeaders
-  });
+  const exportedFile = await fetch(
+    `http://localhost:${port}/api/files/${finishedExportJob.result.fileId}/content`,
+    {
+      headers: authHeaders
+    }
+  );
   assert.equal(exportedFile.status, 200);
   const exportedJson = await exportedFile.json();
   assert.equal(exportedJson.company.name, "Demo PME OHADA");
@@ -352,14 +392,21 @@ try {
   const createFile = await fetch(`http://localhost:${port}/api/files/text`, {
     method: "POST",
     headers: authHeaders,
-    body: JSON.stringify({ name: "phase2-test.txt", content: "verification phase 2", mimeType: "text/plain" })
+    body: JSON.stringify({
+      name: "phase2-test.txt",
+      content: "verification phase 2",
+      mimeType: "text/plain"
+    })
   });
   assert.equal(createFile.status, 201);
   assert.equal((await createFile.json()).file.name, "phase2-test.txt");
 
   const files = await fetch(`http://localhost:${port}/api/files`, { headers: authHeaders });
   assert.equal(files.status, 200);
-  assert.equal((await files.json()).some((file) => file.name === "phase2-test.txt"), true);
+  assert.equal(
+    (await files.json()).some((file) => file.name === "phase2-test.txt"),
+    true
+  );
 
   const html = await fetch(`http://localhost:${port}/`);
   assert.equal(html.status, 200);
@@ -397,7 +444,10 @@ try {
   assert.equal(createAuxiliary.status, 201);
 
   const auxiliaries = await fetchJson(`http://localhost:${port}/api/auxiliary-accounts`);
-  assert.equal(auxiliaries.some((auxiliary) => auxiliary.code === "C-BETA"), true);
+  assert.equal(
+    auxiliaries.some((auxiliary) => auxiliary.code === "C-BETA"),
+    true
+  );
 
   const sample = await fetch(`http://localhost:${port}/api/bank-imports/sample`);
   assert.equal(sample.status, 200);
@@ -429,14 +479,20 @@ try {
     body: JSON.stringify({ csv: sampleCsv })
   });
   const duplicatePreviewBody = await duplicatePreview.json();
-  assert.equal(duplicatePreviewBody.transactions.every((transaction) => transaction.duplicate), true);
+  assert.equal(
+    duplicatePreviewBody.transactions.every((transaction) => transaction.duplicate),
+    true
+  );
 
   const batches = await fetchJson(`http://localhost:${port}/api/bank-imports/batches`);
   assert.equal(batches.length, 1);
 
-  const voidBatch = await fetch(`http://localhost:${port}/api/bank-imports/batches/${commitBody.batch.id}/void`, {
-    method: "POST"
-  });
+  const voidBatch = await fetch(
+    `http://localhost:${port}/api/bank-imports/batches/${commitBody.batch.id}/void`,
+    {
+      method: "POST"
+    }
+  );
   assert.equal(voidBatch.status, 200);
   assert.equal((await voidBatch.json()).removedCount, 4);
 
@@ -459,9 +515,12 @@ try {
   assert.equal(periods.length, 1);
   assert.equal(periods[0].status, "open");
 
-  const locked = await fetch(`http://localhost:${port}/api/accounting-periods/${periods[0].id}/lock`, {
-    method: "POST"
-  });
+  const locked = await fetch(
+    `http://localhost:${port}/api/accounting-periods/${periods[0].id}/lock`,
+    {
+      method: "POST"
+    }
+  );
   assert.equal(locked.status, 200);
 
   const lockedManual = await fetch(`http://localhost:${port}/api/journal-entries`, {
@@ -479,25 +538,31 @@ try {
   });
   assert.equal(lockedManual.status, 423);
 
-  const lockedUpdate = await fetch(`http://localhost:${port}/api/journal-entries/${customAccountEntryBody.id}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      date: "2026-02-15",
-      reference: "CA-001-MOD",
-      description: "Modification refusee periode verrouillee",
-      source: "CA",
-      lines: [
-        { accountCode: "5211", debit: 1000, credit: 0 },
-        { accountCode: "7088", debit: 0, credit: 1000 }
-      ]
-    })
-  });
+  const lockedUpdate = await fetch(
+    `http://localhost:${port}/api/journal-entries/${customAccountEntryBody.id}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-02-15",
+        reference: "CA-001-MOD",
+        description: "Modification refusee periode verrouillee",
+        source: "CA",
+        lines: [
+          { accountCode: "5211", debit: 1000, credit: 0 },
+          { accountCode: "7088", debit: 0, credit: 1000 }
+        ]
+      })
+    }
+  );
   assert.equal(lockedUpdate.status, 423);
 
-  const unlocked = await fetch(`http://localhost:${port}/api/accounting-periods/${periods[0].id}/unlock`, {
-    method: "POST"
-  });
+  const unlocked = await fetch(
+    `http://localhost:${port}/api/accounting-periods/${periods[0].id}/unlock`,
+    {
+      method: "POST"
+    }
+  );
   assert.equal(unlocked.status, 200);
 
   const nextPeriod = await fetch(`http://localhost:${port}/api/accounting-periods`, {
@@ -513,8 +578,14 @@ try {
   assert.equal(allPeriods.length, 2);
 
   const auditAfterPeriod = await fetchJson(`http://localhost:${port}/api/audit-events`);
-  assert.equal(auditAfterPeriod.some((event) => event.action === "period.create"), true);
-  assert.equal(auditAfterPeriod.some((event) => event.action === "period.lock"), true);
+  assert.equal(
+    auditAfterPeriod.some((event) => event.action === "period.create"),
+    true
+  );
+  assert.equal(
+    auditAfterPeriod.some((event) => event.action === "period.lock"),
+    true
+  );
 
   const manual = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
@@ -532,20 +603,23 @@ try {
   assert.equal(manual.status, 201);
   const manualBody = await manual.json();
 
-  const updatedManual = await fetch(`http://localhost:${port}/api/journal-entries/${manualBody.id}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      date: "2026-03-01",
-      reference: "MAN-001-MOD",
-      description: "Saisie test modifiee avant suppression",
-      source: "OD",
-      lines: [
-        { accountCode: "5211", debit: 1500, credit: 0 },
-        { accountCode: "7061", debit: 0, credit: 1500 }
-      ]
-    })
-  });
+  const updatedManual = await fetch(
+    `http://localhost:${port}/api/journal-entries/${manualBody.id}`,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-03-01",
+        reference: "MAN-001-MOD",
+        description: "Saisie test modifiee avant suppression",
+        source: "OD",
+        lines: [
+          { accountCode: "5211", debit: 1500, credit: 0 },
+          { accountCode: "7061", debit: 0, credit: 1500 }
+        ]
+      })
+    }
+  );
   assert.equal(updatedManual.status, 200);
   const updatedManualBody = await updatedManual.json();
   assert.equal(updatedManualBody.entry.description, "Saisie test modifiee avant suppression");
@@ -620,7 +694,9 @@ try {
   });
   assert.equal(supplierPayment.status, 201);
 
-  const supplierLetteringRows = await fetchJson(`http://localhost:${port}/api/lettering?accountCode=4011`);
+  const supplierLetteringRows = await fetchJson(
+    `http://localhost:${port}/api/lettering?accountCode=4011`
+  );
   const supplierRefs = supplierLetteringRows.rows
     .filter((row) => ["FF-001", "RF-001"].includes(row.reference))
     .map((row) => row.lineRef);
@@ -655,26 +731,64 @@ try {
   assert.equal(subscriptionBody.entries.length, 3);
 
   const subscriptions = await fetchJson(`http://localhost:${port}/api/subscriptions`);
-  assert.equal(subscriptions.some((batch) => batch.name === "Loyer test" && batch.entryCount === 3), true);
+  assert.equal(
+    subscriptions.some((batch) => batch.name === "Loyer test" && batch.entryCount === 3),
+    true
+  );
 
-  const auxiliaryBalance = await fetchJson(`http://localhost:${port}/api/reports/auxiliary-balance`);
-  assert.equal(auxiliaryBalance.some((row) => row.code === "C-BETA" && row.debit === 2000 && row.credit === 2000), true);
+  const auxiliaryBalance = await fetchJson(
+    `http://localhost:${port}/api/reports/auxiliary-balance`
+  );
+  assert.equal(
+    auxiliaryBalance.some(
+      (row) => row.code === "C-BETA" && row.debit === 2000 && row.credit === 2000
+    ),
+    true
+  );
 
   const generalLedger = await fetchJson(`http://localhost:${port}/api/reports/general-ledger`);
-  assert.equal(generalLedger.some((row) => row.reference === "FAC-002" && row.auxiliaryCode === "C-BETA"), true);
-  assert.equal(generalLedger.some((row) => row.reference.startsWith("ABN-") && row.source === "subscription"), true);
+  assert.equal(
+    generalLedger.some((row) => row.reference === "FAC-002" && row.auxiliaryCode === "C-BETA"),
+    true
+  );
+  assert.equal(
+    generalLedger.some((row) => row.reference.startsWith("ABN-") && row.source === "subscription"),
+    true
+  );
 
-  const marchLedger = await fetchJson(`http://localhost:${port}/api/reports/general-ledger?from=2026-03-01&to=2026-03-31`);
-  assert.equal(marchLedger.every((row) => row.date >= "2026-03-01" && row.date <= "2026-03-31"), true);
-  assert.equal(marchLedger.some((row) => row.reference === "FAC-002"), true);
-  assert.equal(marchLedger.some((row) => row.reference.startsWith("ABN-")), false);
+  const marchLedger = await fetchJson(
+    `http://localhost:${port}/api/reports/general-ledger?from=2026-03-01&to=2026-03-31`
+  );
+  assert.equal(
+    marchLedger.every((row) => row.date >= "2026-03-01" && row.date <= "2026-03-31"),
+    true
+  );
+  assert.equal(
+    marchLedger.some((row) => row.reference === "FAC-002"),
+    true
+  );
+  assert.equal(
+    marchLedger.some((row) => row.reference.startsWith("ABN-")),
+    false
+  );
 
-  const marchBalance = await fetchJson(`http://localhost:${port}/api/reports/trial-balance?from=2026-03-01&to=2026-03-31`);
-  assert.equal(marchBalance.some((row) => row.code === "4111" && row.debit === 2000 && row.credit === 2000), true);
+  const marchBalance = await fetchJson(
+    `http://localhost:${port}/api/reports/trial-balance?from=2026-03-01&to=2026-03-31`
+  );
+  assert.equal(
+    marchBalance.some((row) => row.code === "4111" && row.debit === 2000 && row.credit === 2000),
+    true
+  );
 
   const lettering = await fetchJson(`http://localhost:${port}/api/lettering?accountCode=4111`);
-  assert.equal(lettering.rows.filter((row) => row.reference === "FAC-002" && row.letteringCode).length, 1);
-  assert.equal(lettering.rows.filter((row) => row.reference === "REG-002" && row.letteringCode).length, 1);
+  assert.equal(
+    lettering.rows.filter((row) => row.reference === "FAC-002" && row.letteringCode).length,
+    1
+  );
+  assert.equal(
+    lettering.rows.filter((row) => row.reference === "REG-002" && row.letteringCode).length,
+    1
+  );
 
   const detail = await fetchJson(`http://localhost:${port}/api/journal-entries/${manualBody.id}`);
   assert.equal(detail.description, "Saisie test modifiee avant suppression");
@@ -723,15 +837,21 @@ async function waitForServer(targetPort) {
 }
 
 async function assertProductionStartupGuard() {
-  await assertUnsafeProductionConfig({
-    OHADA_DEFAULT_ADMIN_PASSWORD: "admin12345",
-    OHADA_EXPOSE_AUTH_TOKENS: "false"
-  }, /OHADA_DEFAULT_ADMIN_PASSWORD/);
+  await assertUnsafeProductionConfig(
+    {
+      OHADA_DEFAULT_ADMIN_PASSWORD: "admin12345",
+      OHADA_EXPOSE_AUTH_TOKENS: "false"
+    },
+    /OHADA_DEFAULT_ADMIN_PASSWORD/
+  );
 
-  await assertUnsafeProductionConfig({
-    OHADA_DEFAULT_ADMIN_PASSWORD: "production-password-123",
-    OHADA_EXPOSE_AUTH_TOKENS: "true"
-  }, /OHADA_EXPOSE_AUTH_TOKENS/);
+  await assertUnsafeProductionConfig(
+    {
+      OHADA_DEFAULT_ADMIN_PASSWORD: "production-password-123",
+      OHADA_EXPOSE_AUTH_TOKENS: "true"
+    },
+    /OHADA_EXPOSE_AUTH_TOKENS/
+  );
 }
 
 async function assertUnsafeProductionConfig(overrides, expectedError) {

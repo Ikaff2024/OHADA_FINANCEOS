@@ -18,7 +18,9 @@ let runtime;
 
 try {
   runtime = createPostgresRuntime();
-  const server = await runtime.one("SELECT current_database() AS database, current_schema() AS schema");
+  const server = await runtime.one(
+    "SELECT current_database() AS database, current_schema() AS schema"
+  );
   const counts = {};
   for (const table of tables) {
     const row = await runtime.one(`SELECT COUNT(*)::int AS count FROM ${table}`);

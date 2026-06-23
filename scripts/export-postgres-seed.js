@@ -51,11 +51,17 @@ for (const table of tables) {
 
   statements.push("");
   statements.push(`-- ${table}`);
-  statements.push(`INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(", ")}) VALUES`);
-  statements.push(rows.map((row, index) => {
-    const suffix = index === rows.length - 1 ? ";" : ",";
-    return `  (${columns.map((column) => sqlValue(row[column], column)).join(", ")})${suffix}`;
-  }).join("\n"));
+  statements.push(
+    `INSERT INTO ${quoteIdentifier(table)} (${columns.map(quoteIdentifier).join(", ")}) VALUES`
+  );
+  statements.push(
+    rows
+      .map((row, index) => {
+        const suffix = index === rows.length - 1 ? ";" : ",";
+        return `  (${columns.map((column) => sqlValue(row[column], column)).join(", ")})${suffix}`;
+      })
+      .join("\n")
+  );
 }
 
 statements.push("COMMIT;");
@@ -65,41 +71,67 @@ await writeFile(outputPath, `${statements.join("\n")}\n`, "utf8");
 console.log(`Export PostgreSQL genere: ${outputPath}`);
 
 function tableExists(table) {
-  return Boolean(db.prepare(`
+  return Boolean(
+    db
+      .prepare(
+        `
     SELECT name
     FROM sqlite_master
     WHERE type = 'table' AND name = ?
-  `).get(table));
+  `
+      )
+      .get(table)
+  );
 }
 
 function ensureOrganizationColumns(database) {
-  const organizationTables = tables.filter((table) => !["organizations", "users", "organization_users", "journal_lines"].includes(table));
+  const organizationTables = tables.filter(
+    (table) => !["organizations", "users", "organization_users", "journal_lines"].includes(table)
+  );
   for (const table of organizationTables) {
     if (!tableExists(table)) continue;
-    const hasColumn = database.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all()
+    const hasColumn = database
+      .prepare(`PRAGMA table_info(${quoteIdentifier(table)})`)
+      .all()
       .some((column) => column.name === "organization_id");
-    if (!hasColumn) database.exec(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN organization_id TEXT NOT NULL DEFAULT 'demo-company'`);
-    database.prepare(`UPDATE ${quoteIdentifier(table)} SET organization_id = ? WHERE organization_id IS NULL OR organization_id = ''`).run("demo-company");
+    if (!hasColumn)
+      database.exec(
+        `ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN organization_id TEXT NOT NULL DEFAULT 'demo-company'`
+      );
+    database
+      .prepare(
+        `UPDATE ${quoteIdentifier(table)} SET organization_id = ? WHERE organization_id IS NULL OR organization_id = ''`
+      )
+      .run("demo-company");
   }
 }
 
 function rowsForTable(table) {
   if (table === "organization_users" && !tableExists(table)) {
-    const userColumns = db.prepare(`PRAGMA table_info(${quoteIdentifier("users")})`).all().map((column) => column.name);
+    const userColumns = db
+      .prepare(`PRAGMA table_info(${quoteIdentifier("users")})`)
+      .all()
+      .map((column) => column.name);
     if (!userColumns.includes("organization_id") || !userColumns.includes("role")) return null;
     return {
       columns: ["user_id", "organization_id", "role"],
-      rows: db.prepare(`
+      rows: db
+        .prepare(
+          `
         SELECT id AS user_id, organization_id, role
         FROM users
         WHERE organization_id IS NOT NULL AND organization_id != '' AND role IS NOT NULL AND role != ''
-      `).all()
+      `
+        )
+        .all()
     };
   }
 
   if (!tableExists(table)) return null;
 
-  const columns = db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all()
+  const columns = db
+    .prepare(`PRAGMA table_info(${quoteIdentifier(table)})`)
+    .all()
     .map((column) => column.name)
     .filter((column) => table !== "users" || !["organization_id", "role"].includes(column));
   const rows = db.prepare(`SELECT * FROM ${quoteIdentifier(table)}`).all();

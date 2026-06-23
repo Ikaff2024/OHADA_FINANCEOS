@@ -59,12 +59,20 @@ try {
   process.env.SMTP_PASS = "";
   process.env.SMTP_FROM = "noreply@financeos.test";
 
-  const { sendInvitationEmail, sendPasswordResetEmail, verifyMailer } = await import(`../src/mailer.js?test=${Date.now()}`);
+  const { sendInvitationEmail, sendPasswordResetEmail, verifyMailer } = await import(
+    `../src/mailer.js?test=${Date.now()}`
+  );
   const verification = await verifyMailer();
   assert.equal(verification.ok, true);
 
-  await sendInvitationEmail({ email: "invite@financeos.test", name: "Invite Test" }, "invite-token-test");
-  await sendPasswordResetEmail({ email: "reset@financeos.test", name: "Reset Test" }, "reset-token-test");
+  await sendInvitationEmail(
+    { email: "invite@financeos.test", name: "Invite Test" },
+    "invite-token-test"
+  );
+  await sendPasswordResetEmail(
+    { email: "reset@financeos.test", name: "Reset Test" },
+    "reset-token-test"
+  );
 
   assert.equal(messages.length, 2);
   assert.match(messages[0], /Invitation a rejoindre OHADA FinanceOS/);

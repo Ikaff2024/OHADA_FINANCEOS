@@ -87,7 +87,10 @@ try {
   assert.equal(updatedEntry.entry.description, "Smoke test PostgreSQL modifie");
 
   const ledgerAfterUpdate = await fetchJson("/api/reports/general-ledger", { headers });
-  assert.equal(ledgerAfterUpdate.some((row) => row.reference === reference && row.debit === 1500), true);
+  assert.equal(
+    ledgerAfterUpdate.some((row) => row.reference === reference && row.debit === 1500),
+    true
+  );
 
   const deletedEntry = await fetchJson(`/api/journal-entries/${createdEntry.id}`, {
     method: "DELETE",
@@ -95,18 +98,27 @@ try {
   });
   assert.equal(deletedEntry.entry.id, createdEntry.id);
 
-  const missingEntry = await fetch(`http://localhost:${port}/api/journal-entries/${createdEntry.id}`, { headers });
+  const missingEntry = await fetch(
+    `http://localhost:${port}/api/journal-entries/${createdEntry.id}`,
+    { headers }
+  );
   assert.equal(missingEntry.status, 404);
 
-  console.log(JSON.stringify({
-    ok: true,
-    runtime: health.config.runtimeDatabase,
-    organization: login.organization?.id,
-    accounts: accounts.length,
-    entries: entries.length,
-    trialBalanceRows: trialBalance.length,
-    mutationCycle: "create-update-delete"
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        runtime: health.config.runtimeDatabase,
+        organization: login.organization?.id,
+        accounts: accounts.length,
+        entries: entries.length,
+        trialBalanceRows: trialBalance.length,
+        mutationCycle: "create-update-delete"
+      },
+      null,
+      2
+    )
+  );
 } catch (error) {
   if (output) console.error(output);
   throw error;
@@ -130,6 +142,7 @@ async function waitForServer() {
 
 async function fetchJson(pathname, options = {}) {
   const response = await fetch(`http://localhost:${port}${pathname}`, options);
-  if (!response.ok) throw new Error(`HTTP ${response.status} sur ${pathname}: ${await response.text()}`);
+  if (!response.ok)
+    throw new Error(`HTTP ${response.status} sur ${pathname}: ${await response.text()}`);
   return response.json();
 }

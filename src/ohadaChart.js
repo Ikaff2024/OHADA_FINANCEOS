@@ -436,7 +436,8 @@ function inferRawAccountType(code) {
   const prefix = value.slice(0, 2);
   const firstDigit = value.at(0);
 
-  if (["16", "17", "18", "19", "40", "42", "43", "44", "46", "56"].includes(prefix)) return "liability";
+  if (["16", "17", "18", "19", "40", "42", "43", "44", "46", "56"].includes(prefix))
+    return "liability";
   if (["28", "29", "39", "49", "59"].includes(prefix)) return "contra_asset";
   if (firstDigit === "1") return "equity";
   if (["2", "3", "4", "5"].includes(firstDigit)) return "asset";
@@ -449,8 +450,10 @@ function inferRawAccountType(code) {
 }
 
 function normalizeReportType(type) {
-  return {
-    contra_asset: "asset",
-    contra_equity: "equity"
-  }[type] ?? type;
+  return (
+    {
+      contra_asset: "asset",
+      contra_equity: "equity"
+    }[type] ?? type
+  );
 }

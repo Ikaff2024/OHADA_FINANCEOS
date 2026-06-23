@@ -25,6 +25,19 @@ npm.cmd run pilot:up
 Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
 La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.example` liste les variables attendues.
 
+## Qualite
+
+```bash
+npm.cmd run lint          # ESLint
+npm.cmd run format:check  # Verifie le formatage Prettier
+npm.cmd run format        # Applique le formatage
+npm.cmd test              # Unites + e2e serveur (SQLite)
+```
+
+La CI (`.github/workflows/ci.yml`) execute lint, format, tests SQLite, e2e
+PostgreSQL et `npm audit` sur chaque PR. Le plan de mise en production complet
+est dans `docs/production-readiness.md`.
+
 ## Verifier
 
 ```bash

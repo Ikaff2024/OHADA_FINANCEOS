@@ -7,6 +7,11 @@
   "scripts": {
     "dev": "node --env-file=.env --no-warnings src/server.js",
     "start": "node --env-file=.env --no-warnings src/server.js",
+    "lint": "eslint \"src/**/*.js\" \"scripts/**/*.js\"",
+    "lint:fix": "eslint \"src/**/*.js\" \"scripts/**/*.js\" --fix",
+    "format": "prettier --write \"src/**/*.js\" \"scripts/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"scripts/**/*.js\"",
+    "test": "node src/check.js && node src/check-server.js",
     "check": "node src/check.js",
     "check:e2e": "node src/check-server.js",
     "check:pg:e2e": "node scripts/check-postgres-smoke.js",
@@ -32,7 +37,14 @@
   },
   "dependencies": {
     "@google/genai": "^2.3.0",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.1",
     "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "prettier": "^3.8.4"
   }
 }
