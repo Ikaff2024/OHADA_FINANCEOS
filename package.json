@@ -35,7 +35,7 @@
     "pilot:restore": "node --env-file=.env.production scripts/restore-postgres.js"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@google/genai": "^2.3.0",

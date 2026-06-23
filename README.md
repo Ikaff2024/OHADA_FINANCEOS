@@ -22,7 +22,7 @@ copy .env.production.example .env.production
 npm.cmd run pilot:up
 ```
 
-Node.js 22.13.0 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite`.
+Node.js 24 ou plus recent est requis, car le MVP utilise le module natif `node:sqlite` (stable sans flag a partir de Node 24).
 La configuration de deploiement est documentee dans `docs/deployment.md`; `.env.example` liste les variables attendues.
 
 Pour la mise en ligne sur Railway (cible d'hebergement retenue), suivre le guide
