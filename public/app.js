@@ -3034,59 +3034,60 @@ async function fetchJson(url) {
   return response.json();
 }
 
+// Writes an inline message and also surfaces an animated toast. Transient
+// "...en cours" loading messages are not toasted (the top progress bar covers them).
+function notify(el, text, isError = false) {
+  if (el) {
+    el.textContent = text;
+    el.classList.toggle("error", isError);
+  }
+  if (text && !String(text).endsWith("...") && typeof window.toast === "function") {
+    window.toast(text, isError ? "error" : "success");
+  }
+}
+
 function setMessage(text, isError = false) {
-  messageEl.textContent = text;
-  messageEl.classList.toggle("error", isError);
+  notify(messageEl, text, isError);
 }
 
 function setCompanyMessage(text, isError = false) {
-  companyMessageEl.textContent = text;
-  companyMessageEl.classList.toggle("error", isError);
+  notify(companyMessageEl, text, isError);
 }
 
 function setAuxiliaryMessage(text, isError = false) {
-  auxiliaryMessageEl.textContent = text;
-  auxiliaryMessageEl.classList.toggle("error", isError);
+  notify(auxiliaryMessageEl, text, isError);
 }
 
 function setAccountMessage(text, isError = false) {
-  accountMessageEl.textContent = text;
-  accountMessageEl.classList.toggle("error", isError);
+  notify(accountMessageEl, text, isError);
 }
 
 function setUserMessage(text, isError = false) {
-  userMessageEl.textContent = text;
-  userMessageEl.classList.toggle("error", isError);
+  notify(userMessageEl, text, isError);
 }
 
 function setInviteMessage(text, isError = false) {
-  inviteMessageEl.textContent = text;
-  inviteMessageEl.classList.toggle("error", isError);
+  notify(inviteMessageEl, text, isError);
 }
 
 function setOrganizationMessage(text, isError = false) {
-  organizationMessageEl.textContent = text;
-  organizationMessageEl.classList.toggle("error", isError);
+  notify(organizationMessageEl, text, isError);
 }
 
 function setJournalMessage(text, isError = false) {
-  journalMessageEl.textContent = text;
-  journalMessageEl.classList.toggle("error", isError);
+  notify(journalMessageEl, text, isError);
 }
 
 function setJobsMessage(text, isError = false) {
-  jobsMessageEl.textContent = text;
-  jobsMessageEl.classList.toggle("error", isError);
+  notify(jobsMessageEl, text, isError);
 }
 
 function setSubscriptionMessage(text, isError = false) {
-  subscriptionMessageEl.textContent = text;
-  subscriptionMessageEl.classList.toggle("error", isError);
+  notify(subscriptionMessageEl, text, isError);
 }
 
 function setLetteringMessage(text, isError = false) {
-  letteringMessageEl.textContent = text;
-  letteringMessageEl.classList.toggle("error", isError);
+  notify(letteringMessageEl, text, isError);
 }
 
 function csvCell(value) {

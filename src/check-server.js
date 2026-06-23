@@ -77,6 +77,13 @@ try {
   assert.match(metricsBody, /http_request_duration_seconds_bucket/);
   assert.match(metricsBody, /process_uptime_seconds/);
 
+  const clientError = await fetch(`http://localhost:${port}/api/client-errors`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "error", message: "test client error", url: "http://x/" })
+  });
+  assert.equal(clientError.status, 204);
+
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
 

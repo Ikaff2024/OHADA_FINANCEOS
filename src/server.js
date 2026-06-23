@@ -161,6 +161,17 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
   process.on(signal, () => shutdown(signal));
 }
 
+process.on("uncaughtException", (error) => {
+  logger.error("uncaught_exception", { message: error.message, stack: error.stack });
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error("unhandled_rejection", {
+    message: reason?.message ?? String(reason),
+    stack: reason?.stack
+  });
+});
+
 let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return;
@@ -942,6 +953,25 @@ async function handleApi(request, response, url) {
     applySecurityHeaders(response);
     response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" });
     response.end(renderMetrics());
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/client-errors") {
+    const payload = await readJson(request);
+    const clip = (value, max) => String(value ?? "").slice(0, max);
+    request.log.warn("client_error", {
+      kind: clip(payload.kind, 40),
+      clientMessage: clip(payload.message, 500),
+      source: clip(payload.source, 300),
+      line: Number(payload.line) || 0,
+      column: Number(payload.column) || 0,
+      stack: clip(payload.stack, 2000),
+      pageUrl: clip(payload.url, 300),
+      userAgent: clip(payload.userAgent, 300),
+      ip: clientIp(request)
+    });
+    response.writeHead(204);
+    response.end();
     return;
   }
 
