@@ -62,15 +62,15 @@ ci-dessous. Les variables marquées 🔴 sont obligatoires.
 > ⚠️ **Ne pas définir `PORT`** : Railway l'attribue automatiquement et
 > l'application l'utilise déjà.
 
-## Étape 4 — Stockage des fichiers (important)
+## Étape 4 — Stockage des fichiers (configuré ✅)
 
-Sur Railway, le disque est **éphémère** : les fichiers générés (exports d'états
-financiers) seraient perdus à chaque redéploiement. Pour les conserver :
+Un volume persistant `ohada_financeos-volume` est monté sur `/app/storage/uploads`
+(aligné avec `OHADA_STORAGE_DIR`). Les exports/fichiers survivent aux
+redéploiements. Écriture validée en production (`POST /api/files/text` → 201).
 
-1. Sur le service application : **Settings → Volumes → Add Volume**.
-2. **Mount path** : `/app/storage/uploads`.
-
-C'est aligné avec la variable `OHADA_STORAGE_DIR` de l'étape 3.
+> Note technique : le conteneur tourne en `root` pour pouvoir écrire dans le
+> volume Railway (monté root). Durcissement futur : repasser en utilisateur non
+> privilégié avec un entrypoint qui ajuste les droits du volume (`gosu`).
 
 ## Étape 5 — Domaine et vérification
 
