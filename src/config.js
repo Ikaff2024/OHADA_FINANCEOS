@@ -12,6 +12,7 @@ export const config = {
   defaultAdminPassword: process.env.OHADA_DEFAULT_ADMIN_PASSWORD || "admin12345",
   sessionTtlHours: Number(process.env.OHADA_SESSION_TTL_HOURS || 12),
   jobWorkerIntervalMs: Number(process.env.OHADA_JOB_WORKER_INTERVAL_MS || 1500),
+  maxJobAttempts: Math.max(1, Number(process.env.OHADA_MAX_JOB_ATTEMPTS || 3)),
   authRateLimitWindowMs: Number(process.env.OHADA_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   authRateLimitMaxAttempts: Number(process.env.OHADA_AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10),
   exposeAuthTokens: process.env.OHADA_EXPOSE_AUTH_TOKENS === "true",

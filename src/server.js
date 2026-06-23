@@ -46,6 +46,7 @@ import {
   deleteJournalEntry,
   enqueueJob,
   failJob,
+  requeueJob,
   loginUser,
   logoutUser,
   inviteUser,
@@ -78,6 +79,7 @@ import { recordRequest, renderMetrics } from "./metrics.js";
 const publicDir = join(rootDir, "public");
 const port = config.port;
 const loginAttempts = new Map();
+const jobAttempts = new Map();
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self'",
@@ -1033,10 +1035,12 @@ async function processNextJob() {
     });
 
     if (!saved.ok) {
+      jobAttempts.delete(job.id);
       await failJob(job.id, saved.error || "Export impossible");
       return;
     }
 
+    jobAttempts.delete(job.id);
     await completeJob(job.id, {
       fileId: saved.file.id,
       fileName: saved.file.name,
@@ -1044,8 +1048,33 @@ async function processNextJob() {
       generatedAt
     });
   } catch (error) {
-    await failJob(job.id, error.message);
+    await handleJobFailure(job, error);
   }
+}
+
+async function handleJobFailure(job, error) {
+  const attempts = (jobAttempts.get(job.id) || 0) + 1;
+  if (attempts < config.maxJobAttempts) {
+    jobAttempts.set(job.id, attempts);
+    logger.warn("job_retry", {
+      jobId: job.id,
+      type: job.type,
+      attempt: attempts,
+      maxAttempts: config.maxJobAttempts,
+      message: error.message
+    });
+    await requeueJob(job.id, `Tentative ${attempts} echouee: ${error.message}`);
+    return;
+  }
+
+  jobAttempts.delete(job.id);
+  logger.error("job_failed", {
+    jobId: job.id,
+    type: job.type,
+    attempts,
+    message: error.message
+  });
+  await failJob(job.id, error.message);
 }
 
 async function readJson(request) {

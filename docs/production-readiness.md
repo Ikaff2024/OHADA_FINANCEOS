@@ -62,7 +62,7 @@ alerte) en moins de 5 min ; l'app tourne en ≥ 2 instances sans perte de sessio
 | Action | Détail |
 | --- | --- |
 | PostgreSQL par défaut en prod | SQLite réservé au dev ; pooling, SSL, timeouts |
-| Worker jobs robuste | Sortir le `setInterval` du process web ; retry exponentiel, idempotence, dead-letter |
+| Worker jobs robuste | 🟡 Retry borné (`OHADA_MAX_JOB_ATTEMPTS`) + re-queue + dead-letter ajoutés ; claim concurrent sûr (`FOR UPDATE SKIP LOCKED` côté PostgreSQL). Reste : sortir le `setInterval` dans un process worker dédié et compteur de tentatives persistant en base |
 | Stockage S3-compatible | Remplacer le stockage disque local (déjà anticipé dans le code) |
 | Exports serveur PDF/XLS | Fiabiliser la génération des états financiers côté serveur |
 | Isolation multi-tenant | Tester le filtrage `organization_id` sur **toutes** les routes (fuite inter-dossiers = critique) |

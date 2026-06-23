@@ -669,6 +669,20 @@ export async function failJob(jobId, error) {
   return { ok: true };
 }
 
+export async function requeueJob(jobId, error) {
+  if (usePostgresRuntime()) return postgresStore.requeueJob(jobId, error);
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  db.prepare(
+    `
+    UPDATE jobs
+    SET status = 'queued', started_at = NULL, error = ?, updated_at = ?
+    WHERE id = ?
+  `
+  ).run(error ? String(error) : null, now, jobId);
+  return { ok: true };
+}
+
 export async function saveTextFile(input) {
   if (usePostgresRuntime()) return postgresStore.saveTextFile(input);
   const db = await getDatabase();

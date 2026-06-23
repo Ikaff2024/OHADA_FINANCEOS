@@ -954,6 +954,15 @@ export async function failJob(jobId, error) {
   return { ok: true };
 }
 
+export async function requeueJob(jobId, error) {
+  const now = new Date().toISOString();
+  await pg().run(
+    "UPDATE jobs SET status = 'queued', started_at = NULL, error = ?, updated_at = ? WHERE id = ?",
+    [error ? String(error) : null, now, jobId]
+  );
+  return { ok: true };
+}
+
 export async function saveTextFile(input) {
   const { join, relative } = await import("node:path");
   const { mkdir, stat, writeFile } = await import("node:fs/promises");
