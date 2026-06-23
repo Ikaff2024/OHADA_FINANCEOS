@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "sh -c 'node scripts/migrate-postgres.js; echo \"MIGRATE_EXIT=$?\"; node scripts/bootstrap-postgres.js; echo \"BOOTSTRAP_EXIT=$?\"; exec node --no-warnings src/server.js'",
+    "startCommand": "sh -c 'node scripts/migrate-postgres.js && node scripts/bootstrap-postgres.js; exec node --no-warnings src/server.js'",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
