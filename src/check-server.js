@@ -318,6 +318,26 @@ try {
   });
   assert.equal(resetLogin.status, 200);
 
+  // RBAC: a viewer must not be able to create a journal entry (write route).
+  const viewerAuth = await resetLogin.json();
+  const viewerWrite = await fetch(`http://localhost:${port}/api/journal-entries`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${viewerAuth.token}`
+    },
+    body: JSON.stringify({
+      date: "2026-02-01",
+      reference: "RBAC-1",
+      description: "Tentative viewer",
+      lines: [
+        { accountCode: "5211", debit: 1000, credit: 0 },
+        { accountCode: "7011", debit: 0, credit: 1000 }
+      ]
+    })
+  });
+  assert.equal(viewerWrite.status, 403);
+
   const createJournal = await fetch(`http://localhost:${port}/api/journals`, {
     method: "POST",
     headers: authHeaders,
