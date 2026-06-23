@@ -14,6 +14,7 @@ import {
   verifyPassword
 } from "./security.js";
 import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
+import { logger } from "./logger.js";
 
 const legacyJsonPath = join(rootDir, "data", "db.json");
 const storageDir = config.storageDir;
@@ -351,7 +352,7 @@ export async function addUser(input) {
   try {
     insertUser(db, user);
   } catch (error) {
-    console.error(error);
+    logger.error("user_insert_failed", { message: error.message });
     return { ok: false, status: 500, error: "Erreur interne lors de l'ajout." };
   }
 
@@ -406,7 +407,9 @@ export async function inviteUser(input) {
   });
 
   // Envoi de l'email asynchrone (ne bloque pas la reponse)
-  sendInvitationEmail(user, invitation.token).catch(console.error);
+  sendInvitationEmail(user, invitation.token).catch((error) =>
+    logger.error("invitation_email_failed", { userId: user.id, message: error.message })
+  );
 
   return {
     ok: true,
@@ -461,7 +464,9 @@ export async function requestPasswordReset(input) {
     summary: `Reinitialisation demandee: ${user.email}`,
     details: { expiresAt: reset.expiresAt }
   });
-  sendPasswordResetEmail(user, reset.token).catch(console.error);
+  sendPasswordResetEmail(user, reset.token).catch((error) =>
+    logger.error("password_reset_email_failed", { userId: user.id, message: error.message })
+  );
 
   return {
     ok: true,
@@ -1691,7 +1696,7 @@ function migrateOrganizationUsers(db) {
       ).run();
     }
   } catch (error) {
-    console.error("Migration error:", error);
+    logger.error("sqlite_migration_error", { message: error.message, stack: error.stack });
   }
 }
 

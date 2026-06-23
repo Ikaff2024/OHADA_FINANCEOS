@@ -13,7 +13,8 @@ const server = spawn(process.execPath, ["src/server.js"], {
     OHADA_EXPOSE_AUTH_TOKENS: "true",
     OHADA_DB_PATH: testDbPath,
     OHADA_STORAGE_DIR: testStoragePath,
-    OHADA_CORS_ALLOWED_ORIGINS: "http://localhost:9999"
+    OHADA_CORS_ALLOWED_ORIGINS: "http://localhost:9999",
+    OHADA_MAX_REQUEST_BODY_BYTES: "65536"
   },
   stdio: ["ignore", "pipe", "pipe"]
 });
@@ -45,6 +46,12 @@ try {
   const healthWithHeaders = await fetch(`http://localhost:${port}/api/health`);
   assert.equal(healthWithHeaders.headers.get("x-content-type-options"), "nosniff");
   assert.equal(healthWithHeaders.headers.get("x-frame-options"), "DENY");
+  assert.match(healthWithHeaders.headers.get("content-security-policy"), /default-src 'self'/);
+  assert.ok(healthWithHeaders.headers.get("x-request-id"), "x-request-id doit etre present");
+  const correlatedHealth = await fetch(`http://localhost:${port}/api/health`, {
+    headers: { "x-request-id": "test-correlation-id" }
+  });
+  assert.equal(correlatedHealth.headers.get("x-request-id"), "test-correlation-id");
   const corsPreflight = await fetch(`http://localhost:${port}/api/health`, {
     method: "OPTIONS",
     headers: {
@@ -55,6 +62,13 @@ try {
   assert.equal(corsPreflight.status, 204);
   assert.equal(corsPreflight.headers.get("access-control-allow-origin"), "http://localhost:9999");
   assert.match(corsPreflight.headers.get("access-control-allow-headers"), /x-organization-id/);
+
+  const oversizedBody = await fetch(`http://localhost:${port}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "a@b.c", password: "x".repeat(70000) })
+  });
+  assert.equal(oversizedBody.status, 413);
 
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);

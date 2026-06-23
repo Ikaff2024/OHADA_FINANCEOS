@@ -10,6 +10,7 @@ import {
 } from "./security.js";
 import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 
 const defaultOrganizationId = "demo-company";
 let runtime;
@@ -743,7 +744,9 @@ export async function inviteUser(input) {
     });
   });
 
-  sendInvitationEmail(user, invitation.token).catch(console.error);
+  sendInvitationEmail(user, invitation.token).catch((error) =>
+    logger.error("invitation_email_failed", { userId: user.id, message: error.message })
+  );
 
   return {
     ok: true,
@@ -801,7 +804,9 @@ export async function requestPasswordReset(input) {
     });
   });
 
-  sendPasswordResetEmail(user, reset.token).catch(console.error);
+  sendPasswordResetEmail(user, reset.token).catch((error) =>
+    logger.error("password_reset_email_failed", { userId: user.id, message: error.message })
+  );
 
   return {
     ok: true,

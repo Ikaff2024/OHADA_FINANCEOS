@@ -68,22 +68,56 @@ import {
   updateCompany,
   voidBankImportBatch
 } from "./store.js";
+import { randomUUID } from "node:crypto";
 import { config, publicConfig, rootDir } from "./config.js";
 import { databaseHealth } from "./databaseHealth.js";
 import { buildSubscriptionEntries } from "./subscriptions.js";
+import { logger } from "./logger.js";
 
 const publicDir = join(rootDir, "public");
 const port = config.port;
 const loginAttempts = new Map();
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'"
+].join("; ");
 const securityHeaders = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
-  "referrer-policy": "no-referrer"
+  "referrer-policy": "no-referrer",
+  "content-security-policy": contentSecurityPolicy,
+  "cross-origin-opener-policy": "same-origin",
+  "x-permitted-cross-domain-policies": "none"
 };
 
 assertSafeStartupConfig();
 
 const server = createServer(async (request, response) => {
+  const startedAt = process.hrtime.bigint();
+  const requestId = resolveRequestId(request);
+  request.log = logger.child({ requestId });
+  response.setHeader("x-request-id", requestId);
+
+  response.on("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    const level = response.statusCode >= 500 ? "error" : "info";
+    request.log[level]("request", {
+      method: request.method,
+      path: safePathForLog(request.url),
+      status: response.statusCode,
+      durationMs: Math.round(durationMs * 100) / 100,
+      ip: clientIp(request)
+    });
+  });
+
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
 
@@ -94,19 +128,29 @@ const server = createServer(async (request, response) => {
 
     await serveStatic(response, url.pathname);
   } catch (error) {
-    console.error(error);
-    sendJson(response, error.status ?? 500, {
-      error: error.status ? error.message : "Erreur serveur interne."
-    });
+    const status = error.status ?? 500;
+    if (status >= 500) {
+      request.log.error("unhandled_request_error", { message: error.message, stack: error.stack });
+    }
+    if (!response.headersSent) {
+      sendJson(response, status, {
+        error: error.status ? error.message : "Erreur serveur interne."
+      });
+    }
   }
 });
 
+server.requestTimeout = config.requestTimeoutMs;
+server.headersTimeout = Math.max(5000, config.requestTimeoutMs + 5000);
+
 server.listen(port, () => {
-  console.log(`OHADA FinanceOS MVP disponible sur http://localhost:${port}`);
+  logger.info("server_started", { port, runtimeDatabase: config.runtimeDatabase });
 });
 
 const jobWorker = setInterval(() => {
-  processNextJob().catch((error) => console.error("Erreur worker jobs", error));
+  processNextJob().catch((error) =>
+    logger.error("job_worker_error", { message: error.message, stack: error.stack })
+  );
 }, config.jobWorkerIntervalMs);
 
 for (const signal of ["SIGTERM", "SIGINT"]) {
@@ -117,7 +161,7 @@ let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`Arret ${signal}: fermeture du serveur OHADA FinanceOS.`);
+  logger.info("server_shutdown", { signal });
   clearInterval(jobWorker);
   server.close(() => process.exit(0));
   setTimeout(() => {
@@ -186,9 +230,26 @@ function clientIp(request) {
   return request.socket?.remoteAddress || "unknown";
 }
 
+function resolveRequestId(request) {
+  const incoming = String(request.headers["x-request-id"] || "").trim();
+  if (incoming && incoming.length <= 200) return incoming;
+  return randomUUID();
+}
+
+function safePathForLog(rawUrl) {
+  try {
+    return new URL(rawUrl, "http://localhost").pathname;
+  } catch {
+    return "/";
+  }
+}
+
 function applySecurityHeaders(response) {
   for (const [header, value] of Object.entries(securityHeaders)) {
     response.setHeader(header, value);
+  }
+  if (config.enableHsts) {
+    response.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
   }
 }
 
@@ -827,8 +888,11 @@ async function handleChatApi(request, response, url) {
       const answer = await askAssistant(payload.message, payload.history || []);
       sendJson(response, 200, { answer });
     } catch (e) {
-      console.error("Chat API Error:", e);
-      sendJson(response, 500, { error: e.message });
+      const status = e.status ?? 500;
+      request.log.error("chat_api_error", { message: e.message, status });
+      sendJson(response, status, {
+        error: e.status ? e.message : "Erreur lors de la generation de la reponse."
+      });
     }
     return true;
   }
@@ -972,8 +1036,18 @@ async function processNextJob() {
 }
 
 async function readJson(request) {
+  const limit = config.maxRequestBodyBytes;
   const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > limit) {
+      const error = new Error("Charge utile trop volumineuse.");
+      error.status = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
 }
 

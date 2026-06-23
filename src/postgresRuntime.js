@@ -1,5 +1,6 @@
 import { Client, Pool } from "pg";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 
 export function requirePostgresUrl() {
   if (!config.databaseUrl) {
@@ -28,7 +29,7 @@ export function createPostgresPool() {
     connectionTimeoutMillis: postgresConnectionTimeoutMs()
   });
   pool.on("error", (error) => {
-    console.error("Erreur client PostgreSQL inactif:", error.message);
+    logger.error("postgres_idle_client_error", { message: error.message });
   });
   return pool;
 }

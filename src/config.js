@@ -15,6 +15,10 @@ export const config = {
   authRateLimitWindowMs: Number(process.env.OHADA_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   authRateLimitMaxAttempts: Number(process.env.OHADA_AUTH_RATE_LIMIT_MAX_ATTEMPTS || 10),
   exposeAuthTokens: process.env.OHADA_EXPOSE_AUTH_TOKENS === "true",
+  logLevel: process.env.LOG_LEVEL || "info",
+  maxRequestBodyBytes: Number(process.env.OHADA_MAX_REQUEST_BODY_BYTES || 2 * 1024 * 1024),
+  requestTimeoutMs: Number(process.env.OHADA_REQUEST_TIMEOUT_MS || 30000),
+  enableHsts: process.env.OHADA_ENABLE_HSTS === "true",
   corsAllowedOrigins: String(process.env.OHADA_CORS_ALLOWED_ORIGINS || "")
     .split(",")
     .map((value) => value.trim())
