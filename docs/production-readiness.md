@@ -33,8 +33,9 @@ But : ne plus jamais casser la production silencieusement.
 | CI GitHub Actions : lint, format, tests SQLite, e2e PostgreSQL, audit | ✅ |
 | `npm audit` à 0 vulnérabilité haute (nodemailer 9, ws, protobufjs) | ✅ |
 | Branch protection sur `main` (review + CI obligatoires) | ⬜ à activer côté GitHub |
-| Dependabot (`.github/dependabot.yml`) | ⬜ |
-| Couverture de tests mesurée (cible ≥ 70 % sur le cœur comptable) | ⬜ |
+| Dependabot (`.github/dependabot.yml`) | ✅ |
+| Suite de tests structurée `node:test` sur le cœur comptable (`test/`) | ✅ |
+| Couverture mesurée via `npm run test:coverage` (cible ≥ 70 % cœur comptable) | 🟡 outil prêt, seuil à affiner |
 
 **Definition of Done** : toute PR vers `main` est bloquée si lint, format,
 tests SQLite, e2e PostgreSQL ou audit échouent.
