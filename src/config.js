@@ -19,6 +19,7 @@ export const config = {
   maxRequestBodyBytes: Number(process.env.OHADA_MAX_REQUEST_BODY_BYTES || 2 * 1024 * 1024),
   requestTimeoutMs: Number(process.env.OHADA_REQUEST_TIMEOUT_MS || 30000),
   enableHsts: process.env.OHADA_ENABLE_HSTS === "true",
+  metricsToken: process.env.OHADA_METRICS_TOKEN || "",
   corsAllowedOrigins: String(process.env.OHADA_CORS_ALLOWED_ORIGINS || "")
     .split(",")
     .map((value) => value.trim())

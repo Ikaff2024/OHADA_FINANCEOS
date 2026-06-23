@@ -73,6 +73,7 @@ import { config, publicConfig, rootDir } from "./config.js";
 import { databaseHealth } from "./databaseHealth.js";
 import { buildSubscriptionEntries } from "./subscriptions.js";
 import { logger } from "./logger.js";
+import { recordRequest, renderMetrics } from "./metrics.js";
 
 const publicDir = join(rootDir, "public");
 const port = config.port;
@@ -108,6 +109,7 @@ const server = createServer(async (request, response) => {
 
   response.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    recordRequest(request.method, response.statusCode, durationMs);
     const level = response.statusCode >= 500 ? "error" : "info";
     request.log[level]("request", {
       method: request.method,
@@ -927,6 +929,17 @@ async function handleApi(request, response, url) {
       checkPostgres: url.searchParams.get("checkPostgres") === "1"
     });
     sendJson(response, database.ok ? 200 : 503, { ok: database.ok, database });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/metrics") {
+    if (config.metricsToken && bearerToken(request) !== config.metricsToken) {
+      sendJson(response, 401, { error: "Authentification requise." });
+      return;
+    }
+    applySecurityHeaders(response);
+    response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" });
+    response.end(renderMetrics());
     return;
   }
 

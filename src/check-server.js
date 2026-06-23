@@ -70,6 +70,13 @@ try {
   });
   assert.equal(oversizedBody.status, 413);
 
+  const metricsResponse = await fetch(`http://localhost:${port}/api/metrics`);
+  assert.equal(metricsResponse.status, 200);
+  const metricsBody = await metricsResponse.text();
+  assert.match(metricsBody, /http_requests_total/);
+  assert.match(metricsBody, /http_request_duration_seconds_bucket/);
+  assert.match(metricsBody, /process_uptime_seconds/);
+
   const anonymousMe = await fetch(`http://localhost:${port}/api/auth/me`);
   assert.equal(anonymousMe.status, 401);
 

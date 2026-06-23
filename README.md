@@ -146,6 +146,7 @@ Mot de passe: admin12345
 
 - `GET /api/health`
 - `GET /api/health/database`
+- `GET /api/metrics`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `POST /api/auth/invitations/accept`

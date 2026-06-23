@@ -45,7 +45,8 @@ tests SQLite, e2e PostgreSQL ou audit échouent.
 | --- | --- | --- |
 | Observabilité | ✅ | Logger JSON structuré natif (`src/logger.js`), `request-id` de corrélation propagé, redaction des secrets, niveaux via `LOG_LEVEL`, access-log par requête |
 | Sécurité HTTP | ✅ | CSP stricte, COOP, HSTS (opt-in `OHADA_ENABLE_HSTS`), limite de taille de body (`413`), timeouts de requête |
-| Métriques & erreurs | ⬜ | Endpoint `/metrics` (Prometheus) + Sentry (ou équivalent) pour les exceptions |
+| Métriques | ✅ | Endpoint Prometheus `GET /api/metrics` (uptime, heap/rss, `http_requests_total`, histogramme de latence), protégeable par `OHADA_METRICS_TOKEN` |
+| Suivi des erreurs | ⬜ | Sentry (ou équivalent) pour les exceptions non gérées |
 | Protection CSRF | ⬜ | À ajouter si bascule vers cookies ; aujourd'hui auth par bearer token (non vulnérable CSRF) |
 | Sessions partagées | ⬜ | Externaliser sessions + rate-limit (PostgreSQL/Redis) pour permettre le multi-instance |
 | Secrets | ⬜ | Sortir du `.env` clair → Docker secrets / SOPS / vault cloud ; rotation admin par défaut forcée |
