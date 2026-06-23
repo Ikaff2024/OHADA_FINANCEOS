@@ -1,0 +1,9 @@
+node_modules/
+data/
+storage/
+db/
+public/
+*.pdf
+*.docx
+package-lock.json
+.aider*
