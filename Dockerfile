@@ -12,9 +12,11 @@ COPY scripts ./scripts
 COPY db ./db
 COPY Guide-d-application-du-SYSCOHADA.pdf ./Guide-d-application-du-SYSCOHADA.pdf
 
-RUN mkdir -p /app/data /app/storage/uploads && chown -R node:node /app
+RUN mkdir -p /app/data /app/storage/uploads
 
-USER node
+# NOTE: runs as root so the process can write to the Railway-mounted volume at
+# /app/storage/uploads (volumes are root-owned). Revisit with a non-root user +
+# volume chown (e.g. gosu entrypoint) as a future hardening step.
 EXPOSE 3050
 
 HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=5 \
