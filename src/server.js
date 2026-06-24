@@ -25,7 +25,7 @@ import {
   transactionsToJournalEntries
 } from "./bankImport.js";
 import { accountClasses } from "./ohadaChart.js";
-import { askAssistant } from "./ai.js";
+import { askAssistant, warmupAssistant } from "./ai.js";
 import {
   addAccountingPeriod,
   addCustomAccount,
@@ -150,6 +150,10 @@ server.headersTimeout = Math.max(5000, config.requestTimeoutMs + 5000);
 
 server.listen(port, () => {
   logger.info("server_started", { port, runtimeDatabase: config.runtimeDatabase });
+  // Pre-upload the SYSCOHADA guide so the first assistant question is fast.
+  warmupAssistant().catch((error) =>
+    logger.warn("assistant_warmup_failed", { message: error.message })
+  );
 });
 
 const jobWorker = setInterval(() => {

@@ -47,8 +47,34 @@ async function uploadGuide() {
 
     guideFileUri = fileResult.uri;
     console.log("Guide SYSCOHADA pret :", guideFileUri);
+    return guideFileUri;
   } catch (error) {
     console.error("Erreur lors de l'upload du guide :", error);
+    throw error;
+  }
+}
+
+// Upload the reference guide at most once; concurrent callers share the same
+// in-flight upload. Resets on failure so a later call can retry.
+let guideUploadPromise = null;
+function ensureGuideUploaded() {
+  if (!ai || guideFileUri) return Promise.resolve(guideFileUri);
+  if (!guideUploadPromise) {
+    guideUploadPromise = uploadGuide().catch((error) => {
+      guideUploadPromise = null;
+      throw error;
+    });
+  }
+  return guideUploadPromise;
+}
+
+// Pre-upload the guide at server startup so the first user question is fast.
+export async function warmupAssistant() {
+  if (!ai) return;
+  try {
+    await ensureGuideUploaded();
+  } catch {
+    /* already logged in uploadGuide; will retry on first question */
   }
 }
 
@@ -59,9 +85,7 @@ export async function askAssistant(userMessage, chatHistory = []) {
     );
   }
 
-  if (!guideFileUri) {
-    await uploadGuide();
-  }
+  await ensureGuideUploaded();
 
   if (!guideFileUri) {
     throw new Error("Impossible de charger le document de reference OHADA.");
