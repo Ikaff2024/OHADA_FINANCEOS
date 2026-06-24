@@ -715,8 +715,9 @@
                 <h2>Balance generale</h2>
               </div>
               <div class="section-actions">
+                <button class="btn btn-primary" type="button" id="download-dossier-pdf">Telecharger le PDF</button>
                 <button class="btn" type="button" id="print-balance">PDF / Imprimer</button>
-                <button class="btn btn-primary" type="button" id="export-balance">Exporter</button>
+                <button class="btn" type="button" id="export-balance">Exporter</button>
               </div>
             </div>
             <div class="journal-tools chart-tools">
@@ -1260,7 +1261,9 @@
     <datalist id="account-options"></datalist>
     <datalist id="auxiliary-options"></datalist>
 
+    <script src="/vendor/jspdf.umd.min.js?v=1"></script>
+    <script src="/vendor/jspdf.plugin.autotable.min.js?v=1"></script>
     <script src="/progress.js?v=20260623-guard"></script>
-    <script type="module" src="/app.js?v=20260623-pdf3"></script>
+    <script type="module" src="/app.js?v=20260623-pdf4"></script>
   </body>
 </html>

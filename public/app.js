@@ -232,6 +232,12 @@ printIncomeStatementButton?.addEventListener("click", () =>
 printVatDeclarationButton?.addEventListener("click", () =>
   printPanel(document.querySelector("#panel-vat-declaration"), "Declaration de TVA")
 );
+document.querySelector("#download-dossier-pdf")?.addEventListener("click", () => {
+  downloadFinancialDossier().catch((error) => {
+    console.error(error);
+    setMessage("Echec de la generation du dossier PDF.", true);
+  });
+});
 queueFinancialExportButton.addEventListener("click", queueFinancialExport);
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
@@ -3225,6 +3231,278 @@ function printPanel(panel, title) {
   window.print();
   panel.classList.remove("is-print-target");
   document.body.dataset.printMode = "";
+}
+
+// One-click PDF dossier (synthèse + identification + bilan + résultat + balance),
+// rendered as vector text with jsPDF + autotable.
+async function downloadFinancialDossier() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    setMessage("Generateur PDF indisponible.", true);
+    return;
+  }
+  if (!state.company) {
+    setMessage("Configurez d'abord la societe avant d'editer le dossier.", true);
+    return;
+  }
+  if (!state.reports || !state.reports.balanceSheet) {
+    state.reports = await fetchReportsForPeriod();
+  }
+
+  const company = state.company || {};
+  const reports = state.reports || {};
+  const bs = reports.balanceSheet || {};
+  const is = reports.incomeStatement || {};
+  const cc = reports.closingControls || {};
+  const tb = reports.trialBalance || [];
+  const a = bs.actif || {};
+  const p = bs.passif || {};
+
+  const ink = [31, 24, 20];
+  const terra = [166, 93, 52];
+  const soft = [122, 110, 100];
+  const line = [214, 205, 194];
+  const paper = [250, 247, 242];
+  const green = [46, 158, 91];
+
+  const fmt = (n) =>
+    new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Number(n || 0));
+  const fiscalYear = String(company.fiscalYearStart || "").slice(0, 4) || "";
+  const reference = `OH-${fiscalYear || new Date().getFullYear()}-${Math.random()
+    .toString(16)
+    .slice(2, 10)
+    .toUpperCase()}`;
+  const generatedAt = new Date().toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  });
+
+  const { jsPDF } = window.jspdf;
+  const applyPlugin = window.applyPlugin || (window.jspdf && window.jspdf.applyPlugin);
+  if (typeof applyPlugin === "function" && typeof jsPDF.API.autoTable !== "function") {
+    try {
+      applyPlugin(jsPDF);
+    } catch (error) {
+      /* fall back to functional form below */
+    }
+  }
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const autoTableFn = window.autoTable || window.default || (window.jspdf && window.jspdf.autoTable);
+  const runAutoTable = (options) => {
+    if (typeof doc.autoTable === "function") return doc.autoTable(options);
+    if (typeof autoTableFn === "function") return autoTableFn(doc, options);
+    throw new Error("Module de tableaux PDF indisponible.");
+  };
+  const W = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  let y = margin;
+
+  const setText = (rgb) => doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+  const ensureSpace = (h) => {
+    if (y + h > PH - 56) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  // ---- Document header card ----
+  doc.setFillColor(paper[0], paper[1], paper[2]);
+  doc.setDrawColor(line[0], line[1], line[2]);
+  doc.roundedRect(margin, y, W - margin * 2, 54, 8, 8, "FD");
+  doc.setFillColor(terra[0], terra[1], terra[2]);
+  doc.roundedRect(margin + 14, y + 13, 28, 28, 5, 5, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text((company.name || "O").trim().charAt(0).toUpperCase(), margin + 28, y + 32, {
+    align: "center"
+  });
+  setText(ink);
+  doc.setFontSize(12);
+  doc.text(company.name || "Entreprise", margin + 54, y + 26);
+  setText(soft);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("DOSSIER FINANCIER SYSCOHADA", margin + 54, y + 39);
+  y += 54 + 20;
+
+  // ---- Title block + score box ----
+  const scoreW = 150;
+  const scoreX = W - margin - scoreW;
+  const total = Array.isArray(cc.controls) ? cc.controls.length : 0;
+  const okCount = cc.okCount ?? 0;
+  doc.setFillColor(paper[0], paper[1], paper[2]);
+  doc.setDrawColor(line[0], line[1], line[2]);
+  doc.roundedRect(scoreX, y, scoreW, 78, 8, 8, "FD");
+  setText(soft);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.text("CONTROLES DE CLOTURE", scoreX + scoreW / 2, y + 18, { align: "center" });
+  setText(ink);
+  doc.setFont("times", "bold");
+  doc.setFontSize(24);
+  doc.text(`${okCount} / ${total}`, scoreX + scoreW / 2, y + 46, { align: "center" });
+  setText(cc.ready ? green : terra);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(cc.ready ? "PRET A EDITER" : "A CORRIGER", scoreX + scoreW / 2, y + 64, {
+    align: "center"
+  });
+
+  setText(soft);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("DOCUMENT DE SYNTHESE", margin, y + 12);
+  setText(ink);
+  doc.setFont("times", "bold");
+  doc.setFontSize(24);
+  doc.text(company.name || "Entreprise", margin, y + 38);
+  setText(terra);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(
+    [`Exercice ${fiscalYear}`, company.country, `Montants en ${company.currency || "XOF"}`]
+      .filter(Boolean)
+      .join("  -  "),
+    margin,
+    y + 56
+  );
+  setText(soft);
+  doc.setFontSize(8);
+  doc.text(`Reference : ${reference}  -  Genere le ${generatedAt}`, margin, y + 70);
+  y += 78 + 24;
+
+  const sectionHeader = (num, title) => {
+    ensureSpace(40);
+    doc.setFillColor(terra[0], terra[1], terra[2]);
+    doc.circle(margin + 8, y + 4, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(String(num), margin + 8, y + 7, { align: "center" });
+    setText(ink);
+    doc.setFontSize(12);
+    doc.text(title, margin + 24, y + 8);
+    y += 16;
+    doc.setDrawColor(line[0], line[1], line[2]);
+    doc.line(margin, y, W - margin, y);
+    y += 16;
+  };
+
+  // ---- Section 1: identification ----
+  sectionHeader(1, "Identification de l'entite");
+  const fields = [
+    { label: "Raison sociale", value: company.name },
+    { label: "Pays", value: company.country },
+    { label: "Devise", value: company.currency },
+    { label: "Debut d'exercice", value: company.fiscalYearStart },
+    { label: "Fin d'exercice", value: company.fiscalYearEnd }
+  ];
+  const cols = 3;
+  const gap = 10;
+  const cardH = 44;
+  const cardW = (W - margin * 2 - gap * (cols - 1)) / cols;
+  const rows = Math.ceil(fields.length / cols);
+  ensureSpace(rows * (cardH + gap));
+  const top = y;
+  fields.forEach((f, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const x = margin + c * (cardW + gap);
+    const cy = top + r * (cardH + gap);
+    doc.setDrawColor(line[0], line[1], line[2]);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, cy, cardW, cardH, 4, 4, "FD");
+    setText(soft);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.text(String(f.label).toUpperCase(), x + 8, cy + 16);
+    setText(ink);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(String(f.value || "-"), x + 8, cy + 33);
+  });
+  y = top + rows * (cardH + gap) + 8;
+
+  const tableStyles = {
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 5, textColor: ink, lineColor: line, lineWidth: 0.5 },
+    headStyles: { fillColor: [245, 238, 230], textColor: ink, fontStyle: "bold" },
+    margin: { left: margin, right: margin }
+  };
+  const boldLastRow = (body) => (data) => {
+    if (data.section === "body" && data.row.index === body.length - 1) {
+      data.cell.styles.fontStyle = "bold";
+    }
+  };
+
+  // ---- Section 2: bilan ----
+  sectionHeader(2, "Bilan SYSCOHADA");
+  const bilanBody = [
+    ["Actif Immobilise", fmt(a.actifImmobilise), "Capitaux Propres", fmt(p.capitauxPropres)],
+    ["Actif Circulant HAO & Stocks", fmt(a.actifCirculantStock), "Resultat Net de l'Exercice", fmt(p.resultatNet)],
+    ["Creances et emplois assimiles", fmt(a.actifCirculantCreances), "Dettes Financieres", fmt(p.dettesFinancieres)],
+    ["Tresorerie Actif", fmt(a.tresorerieActif), "Passif Circulant", fmt(p.passifCirculant)],
+    ["", "", "Tresorerie Passif", fmt(p.tresoreriePassif)],
+    ["Total Actif", fmt(a.totalActif), "Total Passif", fmt(p.totalPassif)]
+  ];
+  runAutoTable({
+    startY: y,
+    head: [["Actif", "Montant", "Passif", "Montant"]],
+    body: bilanBody,
+    ...tableStyles,
+    columnStyles: { 1: { halign: "right" }, 3: { halign: "right" } },
+    didParseCell: boldLastRow(bilanBody)
+  });
+  y = doc.lastAutoTable.finalY + 24;
+
+  // ---- Section 3: compte de résultat ----
+  sectionHeader(3, "Compte de resultat SYSCOHADA");
+  const resBody = [
+    ["Marge Brute", fmt(is.margeBrute)],
+    ["Valeur Ajoutee", fmt(is.valeurAjoutee)],
+    ["Excedent Brut d'Exploitation (EBE)", fmt(is.ebe)],
+    ["Resultat d'Exploitation", fmt(is.resultatExploitation)],
+    ["Resultat Financier", fmt(is.resultatFinancier)],
+    ["Resultat HAO", fmt(is.resultatHao)],
+    ["Resultat Net", fmt(is.resultatNet)]
+  ];
+  runAutoTable({
+    startY: y,
+    head: [["Indicateur", "Montant"]],
+    body: resBody,
+    ...tableStyles,
+    columnStyles: { 1: { halign: "right" } },
+    didParseCell: boldLastRow(resBody)
+  });
+  y = doc.lastAutoTable.finalY + 24;
+
+  // ---- Section 4: balance générale ----
+  sectionHeader(4, "Balance generale");
+  runAutoTable({
+    startY: y,
+    head: [["Compte", "Libelle", "Debit", "Credit", "Solde"]],
+    body: tb.map((row) => [row.code, row.label, fmt(row.debit), fmt(row.credit), fmt(row.balance)]),
+    ...tableStyles,
+    columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } }
+  });
+
+  // ---- Footer on every page ----
+  const pages = doc.getNumberOfPages();
+  for (let pg = 1; pg <= pages; pg += 1) {
+    doc.setPage(pg);
+    doc.setDrawColor(line[0], line[1], line[2]);
+    doc.line(margin, PH - 32, W - margin, PH - 32);
+    setText(soft);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("OHADA FinanceOS  -  Dossier financier", margin, PH - 18);
+    doc.text(`Page ${pg} / ${pages}`, W - margin, PH - 18, { align: "right" });
+  }
+
+  const safeName = String(company.name || "OHADA").replace(/[^a-zA-Z0-9]+/g, "-");
+  doc.save(`Dossier-financier-${safeName}-${fiscalYear || ""}.pdf`);
+  if (typeof window.toast === "function") window.toast("Dossier PDF telecharge.", "success");
 }
 
 function setImportStatus(text, tone) {
