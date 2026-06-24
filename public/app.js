@@ -238,6 +238,9 @@ document.querySelector("#download-dossier-pdf")?.addEventListener("click", () =>
     setMessage("Echec de la generation du dossier PDF.", true);
   });
 });
+document.querySelector("#verify-audit")?.addEventListener("click", () => {
+  verifyAuditIntegrity().catch(() => setMessage("Verification d'audit impossible.", true));
+});
 queueFinancialExportButton.addEventListener("click", queueFinancialExport);
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
@@ -3237,6 +3240,20 @@ function printPanel(panel, title) {
   window.print();
   panel.classList.remove("is-print-target");
   document.body.dataset.printMode = "";
+}
+
+async function verifyAuditIntegrity() {
+  const response = await fetch("/api/audit-events/verify");
+  if (!response.ok) {
+    setMessage("Verification d'audit impossible.", true);
+    return;
+  }
+  const result = await response.json();
+  if (result.ok) {
+    window.toast?.(`Integrite verifiee : ${result.count} evenement(s) intacts.`, "success");
+  } else {
+    window.toast?.(`ALERTE : journal d'audit altere (evenement ${result.brokenAt}).`, "error");
+  }
 }
 
 // One-click PDF dossier (synthèse + identification + bilan + résultat + balance),

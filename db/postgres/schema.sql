@@ -178,7 +178,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
   entity_id TEXT NOT NULL,
   summary TEXT NOT NULL,
   details_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at TIMESTAMPTZ NOT NULL,
+  hash TEXT,
+  prev_hash TEXT
 );
 
 CREATE TABLE IF NOT EXISTS jobs (

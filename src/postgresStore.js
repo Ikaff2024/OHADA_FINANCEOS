@@ -2,10 +2,12 @@ import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.
 import { normalizeJournalEntry } from "./accounting.js";
 import { createPostgresRuntime } from "./postgresRuntime.js";
 import {
+  auditEventHash,
   createSessionToken,
   hashPassword,
   hashToken,
   publicUser,
+  verifyAuditChain,
   verifyPassword
 } from "./security.js";
 import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
@@ -2117,24 +2119,74 @@ async function insertJournal(database, journal) {
 }
 
 async function insertAuditEvent(database, event) {
+  const id = event.id ?? crypto.randomUUID();
+  const organizationId = event.organizationId ?? defaultOrganizationId;
+  const actor = event.actor ?? "system";
+  const createdAt = event.createdAt ?? new Date().toISOString();
+  const prevRow = await database.one(
+    `SELECT hash FROM audit_events
+     WHERE organization_id = ? AND hash IS NOT NULL
+     ORDER BY created_at DESC, id DESC LIMIT 1`,
+    [organizationId]
+  );
+  const prevHash = prevRow?.hash ?? "";
+  const hash = auditEventHash({
+    prevHash,
+    id,
+    organizationId,
+    actor,
+    action: event.action,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    summary: event.summary,
+    createdAt
+  });
+
   await database.run(
     `
     INSERT INTO audit_events
-    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at, hash, prev_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
-      event.id ?? crypto.randomUUID(),
-      event.organizationId ?? defaultOrganizationId,
-      event.actor ?? "system",
+      id,
+      organizationId,
+      actor,
       event.action,
       event.entityType,
       event.entityId,
       event.summary,
       JSON.stringify(event.details ?? {}),
-      event.createdAt ?? new Date().toISOString()
+      createdAt,
+      hash,
+      prevHash
     ]
   );
+}
+
+async function readAuditChain(organizationId = defaultOrganizationId) {
+  const rows = await pg().many(
+    `SELECT * FROM audit_events
+     WHERE organization_id = ? AND hash IS NOT NULL
+     ORDER BY created_at ASC, id ASC`,
+    [organizationId]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    actor: row.actor,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    summary: row.summary,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    hash: row.hash,
+    prevHash: row.prev_hash ?? ""
+  }));
+}
+
+export async function verifyAuditTrail(organizationId = defaultOrganizationId) {
+  return verifyAuditChain(await readAuditChain(organizationId));
 }
 
 async function insertEntry(database, entry) {

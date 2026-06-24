@@ -67,6 +67,7 @@ import {
   updateJournalEntry,
   updateUser,
   updateCompany,
+  verifyAuditTrail,
   voidBankImportBatch
 } from "./store.js";
 import { randomUUID } from "node:crypto";
@@ -669,6 +670,12 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
 
   if (request.method === "GET" && url.pathname === "/api/audit-events") {
     sendJson(response, 200, db.auditEvents ?? []);
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/audit-events/verify") {
+    const result = await verifyAuditTrail(organizationId);
+    sendJson(response, 200, result);
     return true;
   }
 

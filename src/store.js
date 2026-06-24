@@ -7,10 +7,12 @@ import { accountByCode, buildAccountCatalog, enrichAccount } from "./ohadaChart.
 import { config, rootDir } from "./config.js";
 import * as postgresStore from "./postgresStore.js";
 import {
+  auditEventHash,
   createSessionToken,
   hashPassword,
   hashToken,
   publicUser,
+  verifyAuditChain,
   verifyPassword
 } from "./security.js";
 import { sendInvitationEmail, sendPasswordResetEmail } from "./mailer.js";
@@ -1526,7 +1528,9 @@ function createSchema(db) {
       entity_id TEXT NOT NULL,
       summary TEXT NOT NULL,
       details_json TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      hash TEXT,
+      prev_hash TEXT
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
@@ -1585,6 +1589,8 @@ function createSchema(db) {
   addOrganizationColumnIfMissing(db, "classification_corrections");
   addOrganizationColumnIfMissing(db, "accounting_periods");
   addOrganizationColumnIfMissing(db, "audit_events");
+  addColumnIfMissing(db, "audit_events", "hash", "TEXT");
+  addColumnIfMissing(db, "audit_events", "prev_hash", "TEXT");
   addOrganizationColumnIfMissing(db, "jobs");
   addOrganizationColumnIfMissing(db, "stored_files");
   addColumnIfMissing(db, "journal_lines", "auxiliary_code", "TEXT");
@@ -2791,24 +2797,84 @@ function insertLetteringGroup(db, group) {
   );
 }
 
+function latestAuditHash(db, organizationId) {
+  const row = db
+    .prepare(
+      `SELECT hash FROM audit_events
+       WHERE organization_id = ? AND hash IS NOT NULL
+       ORDER BY created_at DESC, id DESC LIMIT 1`
+    )
+    .get(organizationId);
+  return row?.hash ?? "";
+}
+
 function insertAuditEvent(db, event) {
+  const id = event.id ?? crypto.randomUUID();
+  const organizationId = event.organizationId ?? defaultOrganizationId;
+  const actor = event.actor ?? "system";
+  const createdAt = event.createdAt ?? new Date().toISOString();
+  const detailsJson = JSON.stringify(event.details ?? {});
+  const prevHash = latestAuditHash(db, organizationId);
+  const hash = auditEventHash({
+    prevHash,
+    id,
+    organizationId,
+    actor,
+    action: event.action,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    summary: event.summary,
+    createdAt
+  });
+
   db.prepare(
     `
     INSERT INTO audit_events
-    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, actor, action, entity_type, entity_id, summary, details_json, created_at, hash, prev_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
   ).run(
-    event.id ?? crypto.randomUUID(),
-    event.organizationId ?? defaultOrganizationId,
-    event.actor ?? "system",
+    id,
+    organizationId,
+    actor,
     event.action,
     event.entityType,
     event.entityId,
     event.summary,
-    JSON.stringify(event.details ?? {}),
-    event.createdAt ?? new Date().toISOString()
+    detailsJson,
+    createdAt,
+    hash,
+    prevHash
   );
+}
+
+function readAuditChain(db, organizationId = defaultOrganizationId) {
+  return db
+    .prepare(
+      `SELECT * FROM audit_events
+       WHERE organization_id = ? AND hash IS NOT NULL
+       ORDER BY created_at ASC, id ASC`
+    )
+    .all(organizationId)
+    .map((row) => ({
+      id: row.id,
+      organizationId: row.organization_id,
+      actor: row.actor,
+      action: row.action,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      summary: row.summary,
+      detailsJson: row.details_json,
+      createdAt: row.created_at,
+      hash: row.hash,
+      prevHash: row.prev_hash ?? ""
+    }));
+}
+
+export async function verifyAuditTrail(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.verifyAuditTrail(organizationId);
+  const db = await getDatabase();
+  return verifyAuditChain(readAuditChain(db, organizationId));
 }
 
 function createLetteringGroup(
