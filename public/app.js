@@ -3264,8 +3264,15 @@ async function downloadFinancialDossier() {
   const paper = [250, 247, 242];
   const green = [46, 158, 91];
 
-  const fmt = (n) =>
-    new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Number(n || 0));
+  // Group thousands with a plain ASCII space. jsPDF's standard fonts don't
+  // render the narrow no-break space that Intl fr-FR uses, which garbled amounts.
+  const fmt = (n) => {
+    const value = Math.round(Number(n) || 0);
+    const grouped = Math.abs(value)
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return (value < 0 ? "-" : "") + grouped;
+  };
   const fiscalYear = String(company.fiscalYearStart || "").slice(0, 4) || "";
   const reference = `OH-${fiscalYear || new Date().getFullYear()}-${Math.random()
     .toString(16)
@@ -3327,29 +3334,7 @@ async function downloadFinancialDossier() {
   doc.text("DOSSIER FINANCIER SYSCOHADA", margin + 54, y + 39);
   y += 54 + 20;
 
-  // ---- Title block + score box ----
-  const scoreW = 150;
-  const scoreX = W - margin - scoreW;
-  const total = Array.isArray(cc.controls) ? cc.controls.length : 0;
-  const okCount = cc.okCount ?? 0;
-  doc.setFillColor(paper[0], paper[1], paper[2]);
-  doc.setDrawColor(line[0], line[1], line[2]);
-  doc.roundedRect(scoreX, y, scoreW, 78, 8, 8, "FD");
-  setText(soft);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.text("CONTROLES DE CLOTURE", scoreX + scoreW / 2, y + 18, { align: "center" });
-  setText(ink);
-  doc.setFont("times", "bold");
-  doc.setFontSize(24);
-  doc.text(`${okCount} / ${total}`, scoreX + scoreW / 2, y + 46, { align: "center" });
-  setText(cc.ready ? green : terra);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text(cc.ready ? "PRET A EDITER" : "A CORRIGER", scoreX + scoreW / 2, y + 64, {
-    align: "center"
-  });
-
+  // ---- Title block ----
   setText(soft);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
@@ -3436,55 +3421,19 @@ async function downloadFinancialDossier() {
     }
   };
 
-  // ---- Section 2: bilan ----
-  sectionHeader(2, "Bilan SYSCOHADA");
-  const bilanBody = [
-    ["Actif Immobilise", fmt(a.actifImmobilise), "Capitaux Propres", fmt(p.capitauxPropres)],
-    ["Actif Circulant HAO & Stocks", fmt(a.actifCirculantStock), "Resultat Net de l'Exercice", fmt(p.resultatNet)],
-    ["Creances et emplois assimiles", fmt(a.actifCirculantCreances), "Dettes Financieres", fmt(p.dettesFinancieres)],
-    ["Tresorerie Actif", fmt(a.tresorerieActif), "Passif Circulant", fmt(p.passifCirculant)],
-    ["", "", "Tresorerie Passif", fmt(p.tresoreriePassif)],
-    ["Total Actif", fmt(a.totalActif), "Total Passif", fmt(p.totalPassif)]
-  ];
-  runAutoTable({
-    startY: y,
-    head: [["Actif", "Montant", "Passif", "Montant"]],
-    body: bilanBody,
-    ...tableStyles,
-    columnStyles: { 1: { halign: "right" }, 3: { halign: "right" } },
-    didParseCell: boldLastRow(bilanBody)
-  });
-  y = doc.lastAutoTable.finalY + 24;
-
-  // ---- Section 3: compte de résultat ----
-  sectionHeader(3, "Compte de resultat SYSCOHADA");
-  const resBody = [
-    ["Marge Brute", fmt(is.margeBrute)],
-    ["Valeur Ajoutee", fmt(is.valeurAjoutee)],
-    ["Excedent Brut d'Exploitation (EBE)", fmt(is.ebe)],
-    ["Resultat d'Exploitation", fmt(is.resultatExploitation)],
-    ["Resultat Financier", fmt(is.resultatFinancier)],
-    ["Resultat HAO", fmt(is.resultatHao)],
-    ["Resultat Net", fmt(is.resultatNet)]
-  ];
-  runAutoTable({
-    startY: y,
-    head: [["Indicateur", "Montant"]],
-    body: resBody,
-    ...tableStyles,
-    columnStyles: { 1: { halign: "right" } },
-    didParseCell: boldLastRow(resBody)
-  });
-  y = doc.lastAutoTable.finalY + 24;
-
-  // ---- Section 4: balance générale ----
-  sectionHeader(4, "Balance generale");
+  // ---- Section 2: balance générale ----
+  sectionHeader(2, "Balance generale");
   runAutoTable({
     startY: y,
     head: [["Compte", "Libelle", "Debit", "Credit", "Solde"]],
     body: tb.map((row) => [row.code, row.label, fmt(row.debit), fmt(row.credit), fmt(row.balance)]),
     ...tableStyles,
-    columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } }
+    columnStyles: {
+      0: { cellWidth: 50 },
+      2: { halign: "right", cellWidth: 80 },
+      3: { halign: "right", cellWidth: 80 },
+      4: { halign: "right", cellWidth: 80 }
+    }
   });
 
   // ---- Footer on every page ----
