@@ -1671,6 +1671,18 @@ body[data-ui-theme="linear-stripe"] tbody tr:hover {
   }
 }
 /* AI Chat Widget */
+
+/* The chat widget was authored against a different palette; map those names to
+   the active theme so the window is actually visible (it was transparent). */
+:root {
+  --surface-1: var(--paper);
+  --surface-2: var(--paper-warm);
+  --surface-3: var(--bg);
+  --border: var(--line);
+  --text-main: var(--ink);
+  --text-dim: var(--ink-soft);
+}
+
 #ai-chat-widget {
   position: fixed;
   bottom: 24px;
