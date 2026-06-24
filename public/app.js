@@ -218,7 +218,9 @@ autoLetteringButton.addEventListener("click", applyAutomaticLettering);
 balanceSearchEl.addEventListener("input", renderTrialBalance);
 balanceFormatEl.addEventListener("change", renderTrialBalance);
 exportBalanceButton.addEventListener("click", exportTrialBalance);
-printBalanceButton.addEventListener("click", () => printState(balancePrintTitle()));
+printBalanceButton.addEventListener("click", () =>
+  printPanel(document.querySelector("#panel-trial-balance"), balancePrintTitle())
+);
 printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliaryBalancePrintTitle(), "auxiliary-balance"));
 printAuxiliaryLedgerButton.addEventListener("click", () => printState(auxiliaryLedgerPrintTitle(), "auxiliary-ledger"));
 printBalanceSheetButton?.addEventListener("click", () =>
