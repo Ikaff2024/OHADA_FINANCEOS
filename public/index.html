@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OHADA FinanceOS MVP</title>
-    <link rel="stylesheet" href="/styles.css?v=20260623-pdf" />
+    <link rel="stylesheet" href="/styles.css?v=20260623-pdf2" />
   </head>
   <body>
     <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
@@ -747,11 +747,14 @@
             </div>
           </article>
 
-          <article class="panel balance-panel">
+          <article class="panel balance-panel" id="panel-balance-sheet">
             <div class="section-title">
               <div>
                 <p class="eyebrow">SYSCOHADA</p>
                 <h2>Bilan</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="print-balance-sheet">PDF / Imprimer</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -769,11 +772,14 @@
             </div>
           </article>
 
-          <article class="panel balance-panel">
+          <article class="panel balance-panel" id="panel-income-statement">
             <div class="section-title">
               <div>
                 <p class="eyebrow">SYSCOHADA</p>
                 <h2>Compte de Résultat</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="print-income-statement">PDF / Imprimer</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -896,11 +902,14 @@
         </section>
 
         <section class="view" data-view="taxes">
-          <article class="panel balance-panel">
+          <article class="panel balance-panel" id="panel-vat-declaration">
             <div class="section-title">
               <div>
                 <p class="eyebrow">TVA</p>
                 <h2>Déclaration de TVA</h2>
+              </div>
+              <div class="section-actions">
+                <button class="btn" type="button" id="print-vat-declaration">PDF / Imprimer</button>
               </div>
             </div>
             <div class="journal-tools chart-tools">
@@ -1252,6 +1261,6 @@
     <datalist id="auxiliary-options"></datalist>
 
     <script src="/progress.js?v=20260623-guard"></script>
-    <script type="module" src="/app.js?v=20260623-pdf"></script>
+    <script type="module" src="/app.js?v=20260623-pdf2"></script>
   </body>
 </html>

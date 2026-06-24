@@ -1938,6 +1938,10 @@ body[data-ui-theme="linear-stripe"] tbody tr:hover {
     display: none !important;
   }
 
+  body[data-print-mode="single"] .panel:not(.is-print-target) {
+    display: none !important;
+  }
+
   .panel::before {
     display: none;
   }

@@ -126,6 +126,9 @@ const exportBalanceButton = document.querySelector("#export-balance");
 const printBalanceButton = document.querySelector("#print-balance");
 const printAuxiliaryBalanceButton = document.querySelector("#print-auxiliary-balance");
 const printAuxiliaryLedgerButton = document.querySelector("#print-auxiliary-ledger");
+const printBalanceSheetButton = document.querySelector("#print-balance-sheet");
+const printIncomeStatementButton = document.querySelector("#print-income-statement");
+const printVatDeclarationButton = document.querySelector("#print-vat-declaration");
 const queueFinancialExportButton = document.querySelector("#queue-financial-export");
 const jobsMessageEl = document.querySelector("#jobs-message");
 const jobsTableEl = document.querySelector("#jobs-table");
@@ -218,6 +221,15 @@ exportBalanceButton.addEventListener("click", exportTrialBalance);
 printBalanceButton.addEventListener("click", () => printState(balancePrintTitle()));
 printAuxiliaryBalanceButton.addEventListener("click", () => printState(auxiliaryBalancePrintTitle(), "auxiliary-balance"));
 printAuxiliaryLedgerButton.addEventListener("click", () => printState(auxiliaryLedgerPrintTitle(), "auxiliary-ledger"));
+printBalanceSheetButton?.addEventListener("click", () =>
+  printPanel(document.querySelector("#panel-balance-sheet"), "Bilan SYSCOHADA")
+);
+printIncomeStatementButton?.addEventListener("click", () =>
+  printPanel(document.querySelector("#panel-income-statement"), "Compte de resultat SYSCOHADA")
+);
+printVatDeclarationButton?.addEventListener("click", () =>
+  printPanel(document.querySelector("#panel-vat-declaration"), "Declaration de TVA")
+);
 queueFinancialExportButton.addEventListener("click", queueFinancialExport);
 auxiliaryBalanceSearchEl.addEventListener("input", renderAuxiliaries);
 auxiliaryBalancePartyFilterEl.addEventListener("change", renderAuxiliaries);
@@ -3178,10 +3190,9 @@ async function downloadStoredFile(fileId, filename) {
   URL.revokeObjectURL(url);
 }
 
-function printState(title, mode = "") {
+function setPrintHeader(title) {
   const company = state.company ?? {};
   document.body.dataset.printTitle = title;
-  document.body.dataset.printMode = mode;
   document.body.dataset.printCompany = company.name ?? "";
   document.body.dataset.printMeta = [
     company.country,
@@ -3194,7 +3205,23 @@ function printState(title, mode = "") {
     month: "2-digit",
     year: "numeric"
   });
+}
+
+function printState(title, mode = "") {
+  setPrintHeader(title);
+  document.body.dataset.printMode = mode;
   window.print();
+  document.body.dataset.printMode = "";
+}
+
+// Print/export a single panel (e.g. the bilan) isolated from the rest of the view.
+function printPanel(panel, title) {
+  if (!panel) return;
+  setPrintHeader(title);
+  document.body.dataset.printMode = "single";
+  panel.classList.add("is-print-target");
+  window.print();
+  panel.classList.remove("is-print-target");
   document.body.dataset.printMode = "";
 }
 
