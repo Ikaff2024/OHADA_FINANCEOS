@@ -11,6 +11,17 @@ On sécurise d'abord la base de code actuelle (filet de tests + CI + qualité)
 **avant** toute réécriture de framework. Une migration (Next.js/TypeScript,
 NestJS…) ne se fait jamais sans tests verts au préalable.
 
+## Modules produit à venir (cadrage)
+
+- **États financiers SYSCOHADA officiels** : le bilan et le compte de résultat
+  actuels sont simplifiés (retirés du dossier PDF en attendant). À refaire au
+  format réglementaire OHADA (tableaux normalisés, postes officiels).
+- **Budget** : prévisionnel vs réalisé.
+- **Comptabilité analytique** : ventilation par axes (centres de coûts, projets).
+- Le **dossier PDF** (1 clic) est en place : en-tête société, identification
+  (raison sociale, sigle, NIF, forme juridique, pays, devise, exercice) et
+  balance générale ; il accueillera les états officiels une fois disponibles.
+
 ## État de référence
 
 - Backend Node.js HTTP natif (~8 500 lignes), pas de framework.
