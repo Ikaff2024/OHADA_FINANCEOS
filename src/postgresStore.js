@@ -196,7 +196,10 @@ export async function updateCompany(input) {
       .trim()
       .toUpperCase(),
     fiscalYearStart: String(input.fiscalYearStart || "").trim(),
-    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim(),
+    sigle: String(input.sigle ?? current.sigle ?? "").trim(),
+    nif: String(input.nif ?? current.nif ?? "").trim(),
+    legalForm: String(input.legalForm ?? current.legalForm ?? "").trim()
   };
   const errors = validateCompany(company);
   if (errors.length > 0) return { ok: false, status: 422, errors };
@@ -1491,7 +1494,10 @@ async function readCompany(organizationId = defaultOrganizationId) {
     country: row.country,
     currency: row.currency,
     fiscalYearStart: dateOnly(row.fiscal_year_start),
-    fiscalYearEnd: dateOnly(row.fiscal_year_end)
+    fiscalYearEnd: dateOnly(row.fiscal_year_end),
+    sigle: row.sigle ?? "",
+    nif: row.nif ?? "",
+    legalForm: row.legal_form ?? ""
   };
 }
 
@@ -1988,15 +1994,18 @@ async function insertCompany(database, company) {
   await database.run(
     `
     INSERT INTO companies
-    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end, sigle, nif, legal_form)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       organization_id = EXCLUDED.organization_id,
       name = EXCLUDED.name,
       country = EXCLUDED.country,
       currency = EXCLUDED.currency,
       fiscal_year_start = EXCLUDED.fiscal_year_start,
-      fiscal_year_end = EXCLUDED.fiscal_year_end
+      fiscal_year_end = EXCLUDED.fiscal_year_end,
+      sigle = EXCLUDED.sigle,
+      nif = EXCLUDED.nif,
+      legal_form = EXCLUDED.legal_form
   `,
     [
       company.id,
@@ -2005,7 +2014,10 @@ async function insertCompany(database, company) {
       company.country,
       company.currency,
       company.fiscalYearStart,
-      company.fiscalYearEnd
+      company.fiscalYearEnd,
+      company.sigle ?? "",
+      company.nif ?? "",
+      company.legalForm ?? ""
     ]
   );
 }

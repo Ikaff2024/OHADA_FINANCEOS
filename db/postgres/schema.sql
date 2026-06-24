@@ -51,7 +51,10 @@ CREATE TABLE IF NOT EXISTS companies (
   country TEXT NOT NULL,
   currency TEXT NOT NULL,
   fiscal_year_start DATE NOT NULL,
-  fiscal_year_end DATE NOT NULL
+  fiscal_year_end DATE NOT NULL,
+  sigle TEXT,
+  nif TEXT,
+  legal_form TEXT
 );
 
 CREATE TABLE IF NOT EXISTS accounting_periods (

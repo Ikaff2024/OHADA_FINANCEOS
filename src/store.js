@@ -832,7 +832,10 @@ export async function updateCompany(input) {
       .trim()
       .toUpperCase(),
     fiscalYearStart: String(input.fiscalYearStart || "").trim(),
-    fiscalYearEnd: String(input.fiscalYearEnd || "").trim()
+    fiscalYearEnd: String(input.fiscalYearEnd || "").trim(),
+    sigle: String(input.sigle ?? current.sigle ?? "").trim(),
+    nif: String(input.nif ?? current.nif ?? "").trim(),
+    legalForm: String(input.legalForm ?? current.legalForm ?? "").trim()
   };
 
   const errors = validateCompany(company);
@@ -1354,7 +1357,10 @@ function createSchema(db) {
       country TEXT NOT NULL,
       currency TEXT NOT NULL,
       fiscal_year_start TEXT NOT NULL,
-      fiscal_year_end TEXT NOT NULL
+      fiscal_year_end TEXT NOT NULL,
+      sigle TEXT,
+      nif TEXT,
+      legal_form TEXT
     );
 
     CREATE TABLE IF NOT EXISTS organizations (
@@ -1566,6 +1572,9 @@ function createSchema(db) {
   `);
   addColumnIfMissing(db, "journal_entries", "reference", "TEXT NOT NULL DEFAULT ''");
   addOrganizationColumnIfMissing(db, "companies");
+  addColumnIfMissing(db, "companies", "sigle", "TEXT");
+  addColumnIfMissing(db, "companies", "nif", "TEXT");
+  addColumnIfMissing(db, "companies", "legal_form", "TEXT");
   addOrganizationColumnIfMissing(db, "journal_entries");
   addOrganizationColumnIfMissing(db, "auxiliary_accounts");
   addOrganizationColumnIfMissing(db, "custom_accounts");
@@ -1691,7 +1700,10 @@ function readCompany(db, organizationId = defaultOrganizationId) {
     country: row.country,
     currency: row.currency,
     fiscalYearStart: row.fiscal_year_start,
-    fiscalYearEnd: row.fiscal_year_end
+    fiscalYearEnd: row.fiscal_year_end,
+    sigle: row.sigle ?? "",
+    nif: row.nif ?? "",
+    legalForm: row.legal_form ?? ""
   };
 }
 
@@ -2510,8 +2522,8 @@ function insertCompany(db, company) {
   db.prepare(
     `
     INSERT OR REPLACE INTO companies
-    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (id, organization_id, name, country, currency, fiscal_year_start, fiscal_year_end, sigle, nif, legal_form)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
   ).run(
     company.id,
@@ -2520,7 +2532,10 @@ function insertCompany(db, company) {
     company.country,
     company.currency,
     company.fiscalYearStart,
-    company.fiscalYearEnd
+    company.fiscalYearEnd,
+    company.sigle ?? "",
+    company.nif ?? "",
+    company.legalForm ?? ""
   );
 }
 

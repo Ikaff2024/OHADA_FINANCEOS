@@ -649,6 +649,9 @@ function fillCompanyForm() {
   companyForm.elements.currency.value = state.company.currency ?? "";
   companyForm.elements.fiscalYearStart.value = state.company.fiscalYearStart ?? "";
   companyForm.elements.fiscalYearEnd.value = state.company.fiscalYearEnd ?? "";
+  companyForm.elements.sigle.value = state.company.sigle ?? "";
+  companyForm.elements.nif.value = state.company.nif ?? "";
+  companyForm.elements.legalForm.value = state.company.legalForm ?? "";
 }
 
 function initSubscriptionDefaults() {
@@ -1153,7 +1156,10 @@ async function submitCompany(event) {
     country: companyForm.elements.country.value,
     currency: companyForm.elements.currency.value,
     fiscalYearStart: companyForm.elements.fiscalYearStart.value,
-    fiscalYearEnd: companyForm.elements.fiscalYearEnd.value
+    fiscalYearEnd: companyForm.elements.fiscalYearEnd.value,
+    sigle: companyForm.elements.sigle.value,
+    nif: companyForm.elements.nif.value,
+    legalForm: companyForm.elements.legalForm.value
   };
 
   const response = await fetch("/api/company", {
@@ -3379,6 +3385,9 @@ async function downloadFinancialDossier() {
   sectionHeader(1, "Identification de l'entite");
   const fields = [
     { label: "Raison sociale", value: company.name },
+    { label: "Sigle", value: company.sigle },
+    { label: "NIF", value: company.nif },
+    { label: "Forme juridique", value: company.legalForm },
     { label: "Pays", value: company.country },
     { label: "Devise", value: company.currency },
     { label: "Debut d'exercice", value: company.fiscalYearStart },
