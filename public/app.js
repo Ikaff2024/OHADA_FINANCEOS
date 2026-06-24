@@ -36,10 +36,11 @@ const state = {
 };
 
 const nativeFetch = window.fetch.bind(window);
-window.fetch = (input, init = {}) => {
+window.fetch = async (input, init = {}) => {
   const url = typeof input === "string" ? input : input?.url ?? "";
   const headers = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
-  if (isApiRequest(url)) {
+  const isApi = isApiRequest(url);
+  if (isApi) {
     if (state.auth.token && !headers.has("authorization")) {
       headers.set("authorization", `Bearer ${state.auth.token}`);
     }
@@ -47,8 +48,25 @@ window.fetch = (input, init = {}) => {
       headers.set("x-organization-id", state.auth.activeOrganizationId);
     }
   }
-  return nativeFetch(input, { ...init, headers });
+  const response = await nativeFetch(input, { ...init, headers });
+  // Session expired (token no longer valid) while the user was logged in.
+  if (isApi && response.status === 401 && state.auth.token && !url.includes("/api/auth/")) {
+    handleSessionExpired();
+  }
+  return response;
 };
+
+function handleSessionExpired() {
+  if (!state.auth.token) return; // already handled
+  state.auth.token = "";
+  state.auth.user = null;
+  state.auth.organization = null;
+  localStorage.removeItem("ohada-auth-token");
+  if (typeof showLogin === "function") showLogin();
+  if (typeof window.toast === "function") {
+    window.toast("Session expiree. Veuillez vous reconnecter.", "error");
+  }
+}
 
 const formatter = new Intl.NumberFormat("fr-FR", {
   maximumFractionDigits: 0
@@ -3171,6 +3189,11 @@ function printState(title, mode = "") {
     company.fiscalYearStart ? `Exercice ${String(company.fiscalYearStart).slice(0, 4)}` : "",
     reportPeriodLabel()
   ].filter(Boolean).join(" - ");
+  document.body.dataset.printDate = new Date().toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
   window.print();
   document.body.dataset.printMode = "";
 }

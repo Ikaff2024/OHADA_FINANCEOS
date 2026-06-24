@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OHADA FinanceOS MVP</title>
-    <link rel="stylesheet" href="/styles.css?v=20260623-toasts" />
+    <link rel="stylesheet" href="/styles.css?v=20260623-pdf" />
   </head>
   <body>
     <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
@@ -323,7 +323,7 @@
                 <h2>Detail des mouvements</h2>
               </div>
               <div class="section-actions">
-                <button class="btn" type="button" id="print-ledger">Imprimer</button>
+                <button class="btn" type="button" id="print-ledger">PDF / Imprimer</button>
                 <button class="btn btn-primary" type="button" id="export-ledger">Exporter</button>
               </div>
             </div>
@@ -643,7 +643,7 @@
                   <p class="eyebrow">Balance</p>
                   <h2>Balance auxiliaire</h2>
                 </div>
-                <button class="btn" type="button" id="print-auxiliary-balance">Imprimer</button>
+                <button class="btn" type="button" id="print-auxiliary-balance">PDF / Imprimer</button>
               </div>
                 <div class="journal-tools chart-tools">
                   <input id="auxiliary-balance-search" type="search" placeholder="Rechercher auxiliaire, compte..." />
@@ -684,7 +684,7 @@
                   <p class="eyebrow">Details</p>
                   <h2>Grand Livre des Tiers</h2>
                 </div>
-                <button class="btn" type="button" id="print-auxiliary-ledger">Imprimer</button>
+                <button class="btn" type="button" id="print-auxiliary-ledger">PDF / Imprimer</button>
               </div>
                 <div class="table-wrap">
                   <table>
@@ -715,7 +715,7 @@
                 <h2>Balance generale</h2>
               </div>
               <div class="section-actions">
-                <button class="btn" type="button" id="print-balance">Imprimer</button>
+                <button class="btn" type="button" id="print-balance">PDF / Imprimer</button>
                 <button class="btn btn-primary" type="button" id="export-balance">Exporter</button>
               </div>
             </div>
@@ -1252,6 +1252,6 @@
     <datalist id="auxiliary-options"></datalist>
 
     <script src="/progress.js?v=20260623-guard"></script>
-    <script type="module" src="/app.js?v=20260623-toasts"></script>
+    <script type="module" src="/app.js?v=20260623-pdf"></script>
   </body>
 </html>
