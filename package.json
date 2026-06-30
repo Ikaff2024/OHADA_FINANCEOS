@@ -38,7 +38,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@google/genai": "^2.3.0",
+    "@google/genai": "^2.10.0",
     "nodemailer": "^9.0.1",
     "pg": "^8.20.0"
   },
