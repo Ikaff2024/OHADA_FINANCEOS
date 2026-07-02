@@ -67,6 +67,8 @@ import {
   updateJournalEntry,
   updateUser,
   updateCompany,
+  readLiasse,
+  saveLiasse,
   verifyAuditTrail,
   voidBankImportBatch
 } from "./store.js";
@@ -679,6 +681,20 @@ async function handleTreasuryOperationsApi(request, response, url, organizationI
 
   if (request.method === "GET" && url.pathname === "/api/audit-events/verify") {
     const result = await verifyAuditTrail(organizationId);
+    sendJson(response, 200, result);
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/liasse") {
+    sendJson(response, 200, { data: await readLiasse(organizationId) });
+    return true;
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/liasse") {
+    const auth = await requireRole(request, response, ["owner", "admin", "accountant"]);
+    if (!auth) return true;
+    const payload = await readJson(request);
+    const result = await saveLiasse(organizationId, payload.data ?? {});
     sendJson(response, 200, result);
     return true;
   }

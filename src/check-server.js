@@ -635,6 +635,22 @@ try {
     true
   );
 
+  // Audit chain integrity endpoint.
+  const auditIntegrity = await fetchJson(`http://localhost:${port}/api/audit-events/verify`);
+  assert.equal(auditIntegrity.ok, true);
+
+  // Liasse (React financial-statements JSON blob) round-trip.
+  const liasseEmpty = await fetchJson(`http://localhost:${port}/api/liasse`);
+  assert.equal(liasseEmpty.data, null);
+  const savedLiasse = await fetch(`http://localhost:${port}/api/liasse`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({ data: { bilan_actif: { immo_inc: { brut: 1000 } } } })
+  });
+  assert.equal(savedLiasse.status, 200);
+  const liasseAfter = await fetchJson(`http://localhost:${port}/api/liasse`);
+  assert.equal(liasseAfter.data.bilan_actif.immo_inc.brut, 1000);
+
   const manual = await fetch(`http://localhost:${port}/api/journal-entries`, {
     method: "POST",
     headers: { "content-type": "application/json" },

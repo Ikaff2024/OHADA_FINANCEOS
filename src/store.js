@@ -685,6 +685,28 @@ export async function requeueJob(jobId, error) {
   return { ok: true };
 }
 
+export async function readLiasse(organizationId = defaultOrganizationId) {
+  if (usePostgresRuntime()) return postgresStore.readLiasse(organizationId);
+  const db = await getDatabase();
+  const row = db
+    .prepare("SELECT data_json FROM liasse_data WHERE organization_id = ?")
+    .get(organizationId);
+  return row ? JSON.parse(row.data_json) : null;
+}
+
+export async function saveLiasse(organizationId = defaultOrganizationId, data = {}) {
+  if (usePostgresRuntime()) return postgresStore.saveLiasse(organizationId, data);
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO liasse_data (organization_id, data_json, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(organization_id) DO UPDATE SET
+       data_json = excluded.data_json, updated_at = excluded.updated_at`
+  ).run(organizationId, JSON.stringify(data ?? {}), now);
+  return { ok: true, updatedAt: now };
+}
+
 export async function saveTextFile(input) {
   if (usePostgresRuntime()) return postgresStore.saveTextFile(input);
   const db = await getDatabase();
@@ -1555,6 +1577,12 @@ function createSchema(db) {
       mime_type TEXT NOT NULL,
       size INTEGER NOT NULL,
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS liasse_data (
+      organization_id TEXT PRIMARY KEY,
+      data_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_organization_users_user_id ON organization_users(user_id);

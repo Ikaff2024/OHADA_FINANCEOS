@@ -229,3 +229,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_action ON audit_events(action);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_organization_id ON jobs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_stored_files_created_at ON stored_files(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS liasse_data (
+  organization_id TEXT PRIMARY KEY REFERENCES organizations(id),
+  data_json TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);

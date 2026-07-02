@@ -2189,6 +2189,26 @@ export async function verifyAuditTrail(organizationId = defaultOrganizationId) {
   return verifyAuditChain(await readAuditChain(organizationId));
 }
 
+export async function readLiasse(organizationId = defaultOrganizationId) {
+  const row = await pg().one("SELECT data_json FROM liasse_data WHERE organization_id = ?", [
+    organizationId
+  ]);
+  if (!row) return null;
+  return typeof row.data_json === "string" ? JSON.parse(row.data_json) : row.data_json;
+}
+
+export async function saveLiasse(organizationId = defaultOrganizationId, data = {}) {
+  const now = new Date().toISOString();
+  await pg().run(
+    `INSERT INTO liasse_data (organization_id, data_json, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT (organization_id) DO UPDATE SET
+       data_json = EXCLUDED.data_json, updated_at = EXCLUDED.updated_at`,
+    [organizationId, JSON.stringify(data ?? {}), now]
+  );
+  return { ok: true, updatedAt: now };
+}
+
 async function insertEntry(database, entry) {
   await database.run(
     `
