@@ -3568,13 +3568,31 @@ const aiChatSubmit = document.getElementById("ai-chat-submit");
 
 let aiChatHistory = [];
 
-aiChatToggle?.addEventListener("click", () => {
+function openAiChat() {
+  if (!aiChatWindow) return;
   aiChatWindow.classList.remove("hidden");
-  aiChatInput.focus();
-});
+  // Force visibility with inline styles so it never depends on theme CSS vars.
+  aiChatWindow.style.opacity = "1";
+  aiChatWindow.style.pointerEvents = "auto";
+  aiChatWindow.style.transform = "scale(1)";
+  aiChatWindow.style.display = "flex";
+  aiChatInput?.focus();
+}
 
-aiChatClose?.addEventListener("click", () => {
+function closeAiChat() {
+  if (!aiChatWindow) return;
   aiChatWindow.classList.add("hidden");
+  aiChatWindow.style.opacity = "";
+  aiChatWindow.style.pointerEvents = "";
+  aiChatWindow.style.transform = "";
+}
+
+// Direct binding + event delegation fallback (robust against attachment order).
+aiChatToggle?.addEventListener("click", openAiChat);
+aiChatClose?.addEventListener("click", closeAiChat);
+document.addEventListener("click", (event) => {
+  if (event.target.closest?.("#ai-chat-toggle")) openAiChat();
+  else if (event.target.closest?.("#ai-chat-close")) closeAiChat();
 });
 
 function addChatMessage(content, role) {
