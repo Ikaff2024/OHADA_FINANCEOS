@@ -5,7 +5,8 @@ import react from "@vitejs/plugin-react";
 // In dev, proxy the API to the running backend on :3050.
 export default defineConfig({
   plugins: [react()],
-  base: "/",
+  // Served by the Node server under /app (alongside the current app at /).
+  base: "/app/",
   build: {
     outDir: "dist",
     emptyOutDir: true

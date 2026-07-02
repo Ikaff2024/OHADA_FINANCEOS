@@ -80,6 +80,7 @@ import { logger } from "./logger.js";
 import { recordRequest, renderMetrics } from "./metrics.js";
 
 const publicDir = join(rootDir, "public");
+const webDistDir = join(rootDir, "web", "dist");
 const port = config.port;
 const loginAttempts = new Map();
 const jobAttempts = new Map();
@@ -130,6 +131,11 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname.startsWith("/api/")) {
       await handleApi(request, response, url);
+      return;
+    }
+
+    if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
+      await serveWebApp(response, url.pathname);
       return;
     }
 
@@ -1033,6 +1039,34 @@ async function serveStatic(response, pathname) {
 
   applySecurityHeaders(response);
   response.writeHead(200, { "content-type": contentType(filePath) });
+  response.end(file);
+}
+
+// Serves the React frontend (Vite build) under /app with SPA fallback:
+// unknown /app/* paths return index.html so client-side routing works.
+async function serveWebApp(response, pathname) {
+  const relative = normalize(pathname.replace(/^\/app/, "") || "/").replace(
+    /^(\.\.[/\\])+/,
+    ""
+  );
+  const isAsset = /\.[a-z0-9]+$/i.test(relative);
+  let file;
+  let servedPath;
+  try {
+    servedPath = join(webDistDir, relative === "/" ? "index.html" : relative);
+    file = await readFile(servedPath);
+  } catch (error) {
+    if (isAsset) {
+      applySecurityHeaders(response);
+      response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      response.end("Not found");
+      return;
+    }
+    servedPath = join(webDistDir, "index.html");
+    file = await readFile(servedPath);
+  }
+  applySecurityHeaders(response);
+  response.writeHead(200, { "content-type": contentType(servedPath) });
   response.end(file);
 }
 

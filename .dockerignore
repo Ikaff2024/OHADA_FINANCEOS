@@ -3,6 +3,9 @@
 .env
 .env.production
 node_modules
+web/node_modules
+web/dist
+AuthNTIC_claude_code
 data
 storage/uploads
 docs

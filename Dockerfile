@@ -1,3 +1,12 @@
+# --- Stage 1: build the React frontend (Vite) served under /app ---
+FROM node:24-bookworm-slim AS web-build
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
+# --- Stage 2: application image ---
 FROM node:24-bookworm-slim
 
 ENV NODE_ENV=production
@@ -11,6 +20,7 @@ COPY public ./public
 COPY scripts ./scripts
 COPY db ./db
 COPY Guide-d-application-du-SYSCOHADA.pdf ./Guide-d-application-du-SYSCOHADA.pdf
+COPY --from=web-build /web/dist ./web/dist
 
 RUN mkdir -p /app/data /app/storage/uploads
 
