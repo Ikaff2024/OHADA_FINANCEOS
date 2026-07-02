@@ -14,3 +14,7 @@ storage/uploads/*
 .aider*
 scripts/patch.js
 test-ai.js
+
+# External AuthNTIC reference material copied into the working dir (not part of this repo)
+AuthNTIC_claude_code/
+web/dist/

@@ -336,6 +336,32 @@ export function buildClosingControls(entries, periods = [], accountCatalog = acc
   };
 }
 
+export function buildBudgetVsActual(budgets, entries, accountCatalog = accounts) {
+  const trialBalance = buildTrialBalance(entries, accountCatalog);
+  const rowByCode = new Map(trialBalance.map((row) => [row.code, row]));
+  const accountByCode = mapAccounts(accountCatalog);
+
+  return (budgets ?? [])
+    .map((budget) => {
+      const row = rowByCode.get(budget.accountCode);
+      const actual = row ? roundMoney(Math.abs(row.debit - row.credit)) : 0;
+      const budgeted = roundMoney(Number(budget.amount || 0));
+      const variance = roundMoney(budgeted - actual);
+      const consumedPct = budgeted > 0 ? Math.round((actual / budgeted) * 1000) / 10 : 0;
+      const account = accountByCode.get(budget.accountCode);
+      return {
+        id: budget.id,
+        accountCode: budget.accountCode,
+        label: account?.label ?? budget.label ?? "",
+        budget: budgeted,
+        actual,
+        variance,
+        consumedPct
+      };
+    })
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode, "fr", { numeric: true }));
+}
+
 export function totalsForLines(lines) {
   return lines.reduce(
     (totals, line) => ({
