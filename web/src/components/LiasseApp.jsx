@@ -27,7 +27,7 @@ export default function LiasseApp() {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#f0f4f8', fontFamily:'DM Sans, system-ui, sans-serif' }}>
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:32, marginBottom:12 }}>◈</div>
-          <div style={{ fontSize:15, fontWeight:600, color:'#1e3a5f' }}>Auth'NTIC</div>
+          <div style={{ fontSize:15, fontWeight:600, color:'#1e3a5f' }}>OHADA FinanceOS</div>
           <div style={{ fontSize:13, color:'#64748b', marginTop:4 }}>Chargement du dossier…</div>
         </div>
       </div>

@@ -20,7 +20,7 @@ export default function Layout({ module, setModule, params, children }) {
       <aside className={styles.sidebar}>
         {/* Brand */}
         <div className={styles.brand}>
-          <div className={styles.brandName}>Auth'NTIC</div>
+          <div className={styles.brandName}>OHADA FinanceOS</div>
           <div className={styles.brandSub}>Liasse Fiscale</div>
           <div className={styles.brandTag}>SYSCOHADA · Système Normal</div>
         </div>

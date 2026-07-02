@@ -33,7 +33,7 @@ export default function MenuModule({ data, setModule }) {
     <div>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e3a5f', letterSpacing: '-0.5px' }}>
-          Auth'NTIC — Liasse Fiscale SYSCOHADA
+          OHADA FinanceOS — Liasse Fiscale SYSCOHADA
         </h1>
         <p style={{ margin: '5px 0 0', fontSize: 13, color: '#64748b' }}>
           {pr.denomination || 'Entreprise non configurée'} · {pr.date_cloture || 'Exercice non défini'} · Système Normal OHADA

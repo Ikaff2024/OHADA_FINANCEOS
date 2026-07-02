@@ -22,7 +22,7 @@ function downloadTemplate() {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = 'authNtic_balance_template.csv'; a.click()
+  a.href = url; a.download = 'ohada_balance_template.csv'; a.click()
   URL.revokeObjectURL(url)
 }
 

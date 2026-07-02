@@ -53,7 +53,7 @@ export default function ControlesModule({ data, onReset }) {
             <div style={{ fontWeight: 700, fontSize: 14, color: allOk ? '#15803d' : '#dc2626' }}>
               {allOk ? 'Liasse cohérente — tous les contrôles sont verts.' : `${nbKo} contrôle(s) en échec. Vérifiez les modules concernés.`}
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Auth'NTIC · Système Normal SYSCOHADA</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>OHADA FinanceOS · Système Normal SYSCOHADA</div>
           </div>
         </div>
       </div>
