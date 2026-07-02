@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, LogOut } from "lucide-react";
+import { CheckCircle2, LogOut, FileSpreadsheet, ArrowRight } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.jsx";
 import { api } from "../lib/api.js";
 
@@ -55,6 +55,29 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <button
+        className="card"
+        type="button"
+        onClick={() => navigate("/liasse")}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          textAlign: "left",
+          cursor: "pointer",
+          border: "1px solid var(--color-border)"
+        }}
+      >
+        <FileSpreadsheet size={28} color="var(--color-primary)" />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700 }}>Liasse fiscale SYSCOHADA</div>
+          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+            Bilan, compte de résultat, TAFIRE, flux, notes, contrôles.
+          </div>
+        </div>
+        <ArrowRight size={20} color="var(--color-text-muted)" />
+      </button>
     </div>
   );
 }

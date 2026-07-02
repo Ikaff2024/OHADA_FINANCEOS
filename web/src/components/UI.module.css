@@ -1,0 +1,157 @@
+/* ── Section head ────────────────────────────── */
+.sectionHead   { margin-bottom: 22px; }
+.sectionTitle  { font-size: 20px; font-weight: 700; color: var(--color-primary-mid); letter-spacing: -0.3px; }
+.sectionSub    { font-size: 13px; color: var(--color-text-muted); margin-top: 4px; }
+
+/* ── Card ────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+}
+.noPad { padding: 0; overflow: hidden; }
+
+/* ── Card title ──────────────────────────────── */
+.cardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 14px;
+}
+
+/* ── Form field ──────────────────────────────── */
+.field  { margin-bottom: 12px; }
+.label  {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.input {
+  width: 100%;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.12s;
+  box-sizing: border-box;
+}
+.input:focus { border-color: var(--color-accent); }
+
+/* ── NumCell ─────────────────────────────────── */
+.numCell {
+  width: 100%;
+  text-align: right;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  outline: none;
+  padding: 2px 4px;
+}
+
+/* ── Buttons ─────────────────────────────────── */
+.saveBtn {
+  padding: 8px 22px;
+  background: var(--color-primary-mid);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.saveBtn:hover { background: var(--color-primary); }
+
+.ghostBtn {
+  padding: 7px 16px;
+  background: #f0f4f8;
+  color: var(--color-primary-mid);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ghostBtn:hover { background: #e2e8f0; }
+
+/* ── Pill ────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pillOk  { background: #dcfce7; color: #16a34a; }
+.pillKo  { background: #fee2e2; color: #dc2626; }
+
+/* ── Table TH ────────────────────────────────── */
+.th {
+  padding: 9px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.thRight  { text-align: right; }
+.thAccent { color: var(--color-accent-light); }
+
+/* ── KPI card ────────────────────────────────── */
+.kpi {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid;
+}
+.kpiLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 5px;
+}
+.kpiValue {
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+.kpiUnit {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+/* ── Band row ────────────────────────────────── */
+.bandCell {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Total rows ──────────────────────────────── */
+.totalRow     { font-weight: 700; background: #e8eef5; }
+.totalRowHi   { background: var(--color-primary) !important; }
+.totalLabel   { padding: 8px 14px; font-size: 12px; color: var(--color-primary-mid); }
+.totalRowHi .totalLabel  { color: #fff; font-size: 13px; }
+.totalCell    { padding: 8px 12px; text-align: right; font-family: var(--font-mono); font-size: 12px; color: var(--color-primary-mid); }
+.totalRowHi .totalCell   { color: var(--color-accent-light); }

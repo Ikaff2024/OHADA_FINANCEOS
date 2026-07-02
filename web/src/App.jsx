@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import LiasseApp from "./components/LiasseApp.jsx";
 
 export default function App() {
   return (
@@ -13,6 +14,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/liasse"
+        element={
+          <ProtectedRoute>
+            <LiasseApp />
           </ProtectedRoute>
         }
       />

@@ -1,0 +1,143 @@
+.root {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────── */
+.sidebar {
+  width: 210px;
+  min-width: 210px;
+  background: var(--color-primary);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  height: 100vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* accent line top */
+.sidebar::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), transparent);
+}
+
+/* ── Brand ───────────────────────────────────── */
+.brand {
+  padding: 22px 18px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.brandName {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+/* apostrophe accent */
+.brandName::first-letter {
+  color: var(--color-accent);
+}
+
+.brandSub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-accent-light);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-top: 5px;
+}
+
+.brandTag {
+  font-size: 9px;
+  color: rgba(255,255,255,0.25);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+
+/* ── Nav ─────────────────────────────────────── */
+.nav {
+  flex: 1;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 400;
+  text-align: left;
+  transition: all 0.12s ease;
+  border-left: 2px solid transparent;
+}
+
+.navItem:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.85);
+}
+
+.navItem.active {
+  background: rgba(201,168,76,0.12);
+  color: #fff;
+  font-weight: 600;
+  border-left-color: var(--color-accent);
+}
+
+.navIcon {
+  font-size: 13px;
+  min-width: 16px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.navLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Footer ──────────────────────────────────── */
+.sidebarFooter {
+  padding: 14px 18px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.footerCompany {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footerDate {
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+  margin-top: 2px;
+}
+
+/* ── Main ────────────────────────────────────── */
+.main {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
