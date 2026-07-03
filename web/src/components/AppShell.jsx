@@ -5,6 +5,7 @@ import {
   BookOpen,
   ListTree,
   Library,
+  Upload,
   FileSpreadsheet,
   Settings,
   Landmark,
@@ -19,6 +20,7 @@ const NAV = [
   { to: "/journal", label: "Journal", icon: BookOpen },
   { to: "/grand-livre", label: "Grand livre", icon: Library },
   { to: "/plan-comptable", label: "Plan comptable", icon: ListTree },
+  { to: "/imports", label: "Imports bancaires", icon: Upload },
   { to: "/liasse", label: "Liasse fiscale", icon: FileSpreadsheet },
   { to: "/parametres", label: "Paramètres", icon: Settings }
 ];

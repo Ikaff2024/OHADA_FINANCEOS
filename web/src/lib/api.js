@@ -27,6 +27,15 @@ export function clearAuth() {
   setAuth("", "");
 }
 
+export async function apiText(path) {
+  const headers = {};
+  if (authToken) headers.authorization = `Bearer ${authToken}`;
+  if (activeOrg) headers["x-organization-id"] = activeOrg;
+  const response = await fetch(path, { headers });
+  if (!response.ok) throw new Error(`Erreur ${response.status}`);
+  return response.text();
+}
+
 export async function api(path, { method = "GET", body, headers = {} } = {}) {
   const finalHeaders = { ...headers };
   if (body !== undefined) finalHeaders["content-type"] = "application/json";

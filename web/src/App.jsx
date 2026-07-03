@@ -6,6 +6,7 @@ import Journal from "./components/Journal.jsx";
 import GrandLivre from "./components/GrandLivre.jsx";
 import PlanComptable from "./components/PlanComptable.jsx";
 import Parametres from "./components/Parametres.jsx";
+import Imports from "./components/Imports.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppShell from "./components/AppShell.jsx";
 import LiasseApp from "./components/LiasseApp.jsx";
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/grand-livre" element={<Shielded title="Grand livre"><GrandLivre /></Shielded>} />
       <Route path="/plan-comptable" element={<Shielded title="Plan comptable SYSCOHADA"><PlanComptable /></Shielded>} />
       <Route path="/parametres" element={<Shielded title="Paramètres de l'entreprise"><Parametres /></Shielded>} />
+      <Route path="/imports" element={<Shielded title="Imports bancaires"><Imports /></Shielded>} />
       <Route
         path="/liasse"
         element={
