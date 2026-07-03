@@ -9,6 +9,7 @@ import Parametres from "./components/Parametres.jsx";
 import Imports from "./components/Imports.jsx";
 import BalanceAgee from "./components/BalanceAgee.jsx";
 import Audit from "./components/Audit.jsx";
+import Lettrage from "./components/Lettrage.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppShell from "./components/AppShell.jsx";
 import LiasseApp from "./components/LiasseApp.jsx";
@@ -30,6 +31,7 @@ export default function App() {
       <Route path="/saisie" element={<Shielded title="Saisie d'écritures"><Saisie /></Shielded>} />
       <Route path="/journal" element={<Shielded title="Journal des écritures"><Journal /></Shielded>} />
       <Route path="/grand-livre" element={<Shielded title="Grand livre"><GrandLivre /></Shielded>} />
+      <Route path="/lettrage" element={<Shielded title="Lettrage des comptes"><Lettrage /></Shielded>} />
       <Route path="/plan-comptable" element={<Shielded title="Plan comptable SYSCOHADA"><PlanComptable /></Shielded>} />
       <Route path="/parametres" element={<Shielded title="Paramètres de l'entreprise"><Parametres /></Shielded>} />
       <Route path="/imports" element={<Shielded title="Imports bancaires"><Imports /></Shielded>} />
