@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, BookOpen, FileSpreadsheet, Landmark, LogOut } from "lucide-react";
+import { LayoutDashboard, FilePlus, BookOpen, FileSpreadsheet, Landmark, LogOut } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.jsx";
 
 const NAV = [
   { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+  { to: "/saisie", label: "Saisie d'écritures", icon: FilePlus },
   { to: "/journal", label: "Journal", icon: BookOpen },
   { to: "/liasse", label: "Liasse fiscale", icon: FileSpreadsheet }
 ];

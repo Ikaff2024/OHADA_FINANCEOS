@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login.jsx";
 import Dashboard from "./components/Dashboard.jsx";
+import Saisie from "./components/Saisie.jsx";
 import Journal from "./components/Journal.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppShell from "./components/AppShell.jsx";
@@ -20,6 +21,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<Shielded title="Tableau de bord"><Dashboard /></Shielded>} />
+      <Route path="/saisie" element={<Shielded title="Saisie d'écritures"><Saisie /></Shielded>} />
       <Route path="/journal" element={<Shielded title="Journal des écritures"><Journal /></Shielded>} />
       <Route
         path="/liasse"
