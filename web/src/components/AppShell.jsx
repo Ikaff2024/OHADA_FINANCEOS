@@ -6,10 +6,12 @@ import {
   ListTree,
   Library,
   FileSpreadsheet,
+  Settings,
   Landmark,
   LogOut
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.jsx";
+import ChatWidget from "./ChatWidget.jsx";
 
 const NAV = [
   { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
@@ -17,7 +19,8 @@ const NAV = [
   { to: "/journal", label: "Journal", icon: BookOpen },
   { to: "/grand-livre", label: "Grand livre", icon: Library },
   { to: "/plan-comptable", label: "Plan comptable", icon: ListTree },
-  { to: "/liasse", label: "Liasse fiscale", icon: FileSpreadsheet }
+  { to: "/liasse", label: "Liasse fiscale", icon: FileSpreadsheet },
+  { to: "/parametres", label: "Paramètres", icon: Settings }
 ];
 
 export default function AppShell({ title, children }) {
@@ -112,6 +115,7 @@ export default function AppShell({ title, children }) {
         )}
         {children}
       </main>
+      <ChatWidget />
     </div>
   );
 }
