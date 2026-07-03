@@ -3,6 +3,8 @@ import Login from "./components/Login.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Saisie from "./components/Saisie.jsx";
 import Journal from "./components/Journal.jsx";
+import GrandLivre from "./components/GrandLivre.jsx";
+import PlanComptable from "./components/PlanComptable.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppShell from "./components/AppShell.jsx";
 import LiasseApp from "./components/LiasseApp.jsx";
@@ -23,6 +25,8 @@ export default function App() {
       <Route path="/dashboard" element={<Shielded title="Tableau de bord"><Dashboard /></Shielded>} />
       <Route path="/saisie" element={<Shielded title="Saisie d'écritures"><Saisie /></Shielded>} />
       <Route path="/journal" element={<Shielded title="Journal des écritures"><Journal /></Shielded>} />
+      <Route path="/grand-livre" element={<Shielded title="Grand livre"><GrandLivre /></Shielded>} />
+      <Route path="/plan-comptable" element={<Shielded title="Plan comptable SYSCOHADA"><PlanComptable /></Shielded>} />
       <Route
         path="/liasse"
         element={
