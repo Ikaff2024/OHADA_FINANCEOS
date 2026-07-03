@@ -6,6 +6,8 @@ import {
   ListTree,
   Library,
   Upload,
+  Clock,
+  ShieldCheck,
   FileSpreadsheet,
   Settings,
   Landmark,
@@ -21,6 +23,8 @@ const NAV = [
   { to: "/grand-livre", label: "Grand livre", icon: Library },
   { to: "/plan-comptable", label: "Plan comptable", icon: ListTree },
   { to: "/imports", label: "Imports bancaires", icon: Upload },
+  { to: "/balance-agee", label: "Balance âgée", icon: Clock },
+  { to: "/audit", label: "Audit", icon: ShieldCheck },
   { to: "/liasse", label: "Liasse fiscale", icon: FileSpreadsheet },
   { to: "/parametres", label: "Paramètres", icon: Settings }
 ];
