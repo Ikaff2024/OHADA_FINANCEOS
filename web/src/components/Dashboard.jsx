@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileSpreadsheet, ArrowRight, LogOut, Landmark } from "lucide-react";
+import { FileSpreadsheet, ArrowRight } from "lucide-react";
 import { useAuth } from "../hooks/useAuth.jsx";
 import { api } from "../lib/api.js";
 
 const money = (n) =>
-  new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 })
-    .format(Math.round(Number(n) || 0))
-    .replace(/ | /g, " ");
+  new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(Number(n) || 0));
 
 function sumByClass(rows, prefix, natural) {
   return rows
@@ -16,7 +14,7 @@ function sumByClass(rows, prefix, natural) {
 }
 
 export default function Dashboard() {
-  const { user, organization, logout } = useAuth();
+  const { organization } = useAuth();
   const navigate = useNavigate();
   const [kpis, setKpis] = useState(null);
 
@@ -33,27 +31,10 @@ export default function Dashboard() {
       .catch(() => setKpis({ cash: 0, revenue: 0, expenses: 0 }));
   }, []);
 
-  async function onLogout() {
-    await logout();
-    navigate("/login", { replace: true });
-  }
+  const currency = organization?.currency || "XOF";
 
   return (
-    <div style={{ maxWidth: 980, margin: "0 auto", padding: 32, display: "grid", gap: 20 }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 22, color: "var(--color-primary)" }}>
-            OHADA FinanceOS
-          </div>
-          <div style={{ color: "var(--color-text-muted)", fontSize: 14 }}>
-            {user?.name || user?.email} · {organization?.name || "—"}
-          </div>
-        </div>
-        <button className="btn" type="button" onClick={onLogout}>
-          <LogOut size={16} /> Déconnexion
-        </button>
-      </header>
-
+    <div style={{ display: "grid", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         {[
           { label: "Trésorerie", value: kpis?.cash, hint: "Comptes de classe 5" },
@@ -66,9 +47,7 @@ export default function Dashboard() {
             </div>
             <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6, color: "var(--color-primary)" }}>
               {kpis ? `${money(kpi.value)} ` : "…"}
-              <span style={{ fontSize: 13, color: "var(--color-text-faint)" }}>
-                {organization?.currency || "XOF"}
-              </span>
+              <span style={{ fontSize: 13, color: "var(--color-text-faint)" }}>{currency}</span>
             </div>
             <div style={{ fontSize: 12, color: "var(--color-text-faint)", marginTop: 2 }}>
               {kpi.hint}
@@ -92,22 +71,6 @@ export default function Dashboard() {
         </div>
         <ArrowRight size={20} color="var(--color-text-muted)" />
       </button>
-
-      <a
-        className="card"
-        href="/"
-        style={{ display: "flex", alignItems: "center", gap: 16, textAlign: "left" }}
-      >
-        <Landmark size={28} color="var(--color-accent)" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700 }}>Comptabilité complète</div>
-          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
-            Saisie d'écritures, journal, imports bancaires, lettrage, assistant IA.
-            (En cours de portage vers cette nouvelle interface.)
-          </div>
-        </div>
-        <ArrowRight size={20} color="var(--color-text-muted)" />
-      </a>
     </div>
   );
 }
