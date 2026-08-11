@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.3.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.0.5",
     "pg": "^8.20.0"
   },
   "devDependencies": {
