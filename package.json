@@ -40,7 +40,7 @@
   "dependencies": {
     "@google/genai": "^2.3.0",
     "nodemailer": "^9.0.1",
-    "pg": "^8.20.0"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
